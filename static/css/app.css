@@ -1,0 +1,465 @@
+/**
+ * ============================================================================
+ * Colada Lightning - Custom Styles
+ * ============================================================================
+ * Dark theme with Fire TV orange accents
+ */
+
+/* ============================================================================
+ * Global Styles
+ * ============================================================================ */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #f97316 #1f2937;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: #f97316;
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: #ea580c;
+}
+
+/* ============================================================================
+ * Navigation
+ * ============================================================================ */
+
+.nav-link.active {
+    background-color: #374151;
+    color: #f97316;
+}
+
+.nav-link:hover {
+    background-color: #374151;
+}
+
+/* ============================================================================
+ * Cards
+ * ============================================================================ */
+
+.card {
+    background-color: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    border-color: #f97316;
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+}
+
+.card-header {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #f3f4f6;
+}
+
+.card-body {
+    color: #d1d5db;
+}
+
+/* ============================================================================
+ * Buttons
+ * ============================================================================ */
+
+.btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+    outline: none;
+}
+
+.btn-primary {
+    background-color: #f97316;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #ea580c;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+}
+
+.btn-secondary {
+    background-color: #374151;
+    color: #f3f4f6;
+}
+
+.btn-secondary:hover {
+    background-color: #4b5563;
+}
+
+.btn-danger {
+    background-color: #dc2626;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #b91c1c;
+}
+
+.btn-success {
+    background-color: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #059669;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.875rem;
+    font-size: 0.875rem;
+}
+
+.btn-lg {
+    padding: 0.875rem 1.75rem;
+    font-size: 1.125rem;
+}
+
+/* ============================================================================
+ * Forms
+ * ============================================================================ */
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #f3f4f6;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    background-color: #111827;
+    border: 1px solid #374151;
+    border-radius: 0.375rem;
+    color: #f3f4f6;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.form-input::placeholder {
+    color: #6b7280;
+}
+
+.form-checkbox {
+    width: 1.125rem;
+    height: 1.125rem;
+    border: 1px solid #374151;
+    border-radius: 0.25rem;
+    background-color: #111827;
+    cursor: pointer;
+}
+
+.form-checkbox:checked {
+    background-color: #f97316;
+    border-color: #f97316;
+}
+
+.form-error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.375rem;
+}
+
+.form-help {
+    color: #9ca3af;
+    font-size: 0.875rem;
+    margin-top: 0.375rem;
+}
+
+/* ============================================================================
+ * Badges & Status Indicators
+ * ============================================================================ */
+
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    text-transform: uppercase;
+}
+
+.badge-success {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.badge-warning {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.badge-danger {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.badge-info {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+}
+
+.badge-gray {
+    background-color: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+}
+
+/* ============================================================================
+ * Tables
+ * ============================================================================ */
+
+.table-container {
+    overflow-x: auto;
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table thead {
+    background-color: #1f2937;
+}
+
+.table th {
+    padding: 0.875rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #f3f4f6;
+    border-bottom: 1px solid #374151;
+}
+
+.table td {
+    padding: 0.875rem 1rem;
+    color: #d1d5db;
+    border-bottom: 1px solid #374151;
+}
+
+.table tbody tr:hover {
+    background-color: #1f2937;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================================================
+ * Toast Notifications
+ * ============================================================================ */
+
+.toast {
+    min-width: 300px;
+    background-color: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.3s ease;
+}
+
+.toast-success {
+    border-left: 4px solid #10b981;
+}
+
+.toast-error {
+    border-left: 4px solid #ef4444;
+}
+
+.toast-warning {
+    border-left: 4px solid #f59e0b;
+}
+
+.toast-info {
+    border-left: 4px solid #3b82f6;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+ * Modals
+ * ============================================================================ */
+
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.75);
+}
+
+.modal {
+    background-color: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 0.75rem;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #374151;
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f3f4f6;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid #374151;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+/* ============================================================================
+ * Loading States
+ * ============================================================================ */
+
+.skeleton {
+    background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 0.375rem;
+}
+
+@keyframes loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.spinner {
+    border: 3px solid #374151;
+    border-top-color: #f97316;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+ * Device/App Grid
+ * ============================================================================ */
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.device-card,
+.app-card {
+    background-color: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.device-card:hover,
+.app-card:hover {
+    border-color: #f97316;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(249, 115, 22, 0.2);
+}
+
+.device-icon,
+.app-icon {
+    font-size: 3rem;
+    color: #f97316;
+    margin-bottom: 1rem;
+}
+
+/* ============================================================================
+ * Utilities
+ * ============================================================================ */
+
+.text-orange {
+    color: #f97316;
+}
+
+.bg-orange {
+    background-color: #f97316;
+}
+
+.border-orange {
+    border-color: #f97316;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #6b7280;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.divider {
+    height: 1px;
+    background-color: #374151;
+    margin: 1.5rem 0;
+}

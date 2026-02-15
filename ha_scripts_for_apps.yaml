@@ -1,0 +1,81 @@
+# Add these scripts to your Home Assistant configuration.yaml or scripts.yaml
+
+fire_tv_launch_app:
+  alias: "Fire TV - Launch App"
+  fields:
+    device:
+      description: "Device ID (livingroom_colada, bedroom_colada, albin_colada)"
+      example: "livingroom_colada"
+    package:
+      description: "App package name"
+      example: "com.netflix.ninja"
+  sequence:
+    - service: mqtt.publish
+      data:
+        topic: "maestro_hub/colada/{{ device }}/launch_app"
+        payload: '{"package": "{{ package }}"}'
+
+# Convenience scripts for common apps
+fire_tv_netflix:
+  alias: "Fire TV - Launch Netflix"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.netflix.ninja"
+
+fire_tv_youtube:
+  alias: "Fire TV - Launch YouTube"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.google.android.youtube.tv"
+
+fire_tv_spotify:
+  alias: "Fire TV - Launch Spotify"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.spotify.tv.android"
+
+fire_tv_hulu:
+  alias: "Fire TV - Launch Hulu"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.hulu.plus"
+
+fire_tv_disney:
+  alias: "Fire TV - Launch Disney+"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.disney.disneyplus"
+
+fire_tv_paramount:
+  alias: "Fire TV - Launch Paramount+"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.cbs.ott"
+
+fire_tv_hbomax:
+  alias: "Fire TV - Launch HBO Max"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.hbo.hbonow"
+
+fire_tv_prime:
+  alias: "Fire TV - Launch Prime Video"
+  sequence:
+    - service: script.fire_tv_launch_app
+      data:
+        device: "{{ states('input_select.fire_tv_target') | lower | replace(' ', '_') }}"
+        package: "com.amazon.avod.thirdpartyclient"
