@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  hms-firetv:
+    build: .
+    image: hms-firetv:latest
+    container_name: hms-firetv
+    restart: unless-stopped
+
+    # Environment variables (use .env file or specify here)
+    env_file:
+      - .env
+
+    # Alternative: Specify environment variables directly
+    # environment:
+    #   - API_HOST=0.0.0.0
+    #   - API_PORT=8888
+    #   - DB_HOST=postgres
+    #   - DB_PORT=5432
+    #   - DB_NAME=firetv
+    #   - DB_USER=firetv_user
+    #   - DB_PASSWORD=your_password
+    #   - MQTT_BROKER_HOST=mqtt
+    #   - MQTT_BROKER_PORT=1883
+    #   - MQTT_USER=your_mqtt_user
+    #   - MQTT_PASS=your_mqtt_password
+
+    ports:
+      - "8888:8888"
+
+    # Network mode: bridge (default) or host
+    # Use host mode if you need to access devices on the local network
+    # network_mode: host
+
+    networks:
+      - hms-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # PostgreSQL database (optional - use if you don't have external DB)
+  postgres:
+    image: postgres:17-alpine
+    container_name: hms-firetv-postgres
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_DB=firetv
+      - POSTGRES_USER=firetv_user
+      - POSTGRES_PASSWORD=your_password
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+    networks:
+      - hms-network
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firetv_user -d firetv"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MQTT broker (optional - use if you don't have external MQTT)
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: hms-firetv-mqtt
+    restart: unless-stopped
+
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mqtt-data:/mosquitto/data
+      - mqtt-logs:/mosquitto/log
+
+    networks:
+      - hms-network
+
+networks:
+  hms-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mqtt-data:
+  mqtt-logs:
