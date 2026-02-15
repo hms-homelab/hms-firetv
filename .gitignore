@@ -1,0 +1,67 @@
+# ==============================================================================
+# HMS FireTV - Git Ignore
+# ==============================================================================
+
+# Sensitive configuration files
+.env
+*.secret
+*.key
+*.pem
+
+# Build directories
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# macOS
+.DS_Store
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Test output
+test_output/
+*.test
+
+# Docker volumes
+postgres-data/
+mqtt-data/
+mqtt-logs/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Compiled binary
+hms_firetv
+hms-firetv
+
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+*.zip

@@ -1,0 +1,732 @@
+views:
+  - title: Fire TV
+    path: fire-tv
+    icon: mdi:television
+    cards:
+      # Device Selector
+      - type: entities
+        entities:
+          - input_select.fire_tv_target
+
+      # ============================================================================
+      # Living Room Fire TV Buttons (shown when Living Room selected)
+      # ============================================================================
+      - type: conditional
+        conditions:
+          - entity: input_select.fire_tv_target
+            state: "Living Room"
+        card:
+          type: vertical-stack
+          cards:
+            # System Buttons (Home, Back, Menu, Sleep)
+            - type: grid
+              columns: 4
+              square: false
+              cards:
+                - type: button
+                  entity: button.livingroom_colada_home
+                  icon: mdi:home
+                  name: Home
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_home
+                - type: button
+                  entity: button.livingroom_colada_back
+                  icon: mdi:arrow-left-circle
+                  name: Back
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_back
+                - type: button
+                  entity: button.livingroom_colada_menu
+                  icon: mdi:menu
+                  name: Menu
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_menu
+                - type: button
+                  entity: button.livingroom_colada_sleep
+                  icon: mdi:power-sleep
+                  name: Sleep
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_sleep
+
+            # D-Pad Navigation
+            - type: grid
+              columns: 3
+              square: true
+              cards:
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.livingroom_colada_up
+                  icon: mdi:chevron-up
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_up
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.livingroom_colada_left
+                  icon: mdi:chevron-left
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_left
+                - type: button
+                  entity: button.livingroom_colada_select
+                  name: OK
+                  icon: mdi:circle
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_select
+                - type: button
+                  entity: button.livingroom_colada_right
+                  icon: mdi:chevron-right
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_right
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.livingroom_colada_down
+                  icon: mdi:chevron-down
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_down
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+
+            # Media Control (Play, Pause)
+            - type: grid
+              columns: 2
+              square: false
+              cards:
+                - type: button
+                  entity: button.livingroom_colada_play
+                  icon: mdi:play
+                  name: Play
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_play
+                - type: button
+                  entity: button.livingroom_colada_pause
+                  icon: mdi:pause
+                  name: Pause
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_pause
+
+            # Volume Control
+            - type: grid
+              columns: 3
+              square: false
+              cards:
+                - type: button
+                  entity: button.livingroom_colada_volume_up
+                  icon: mdi:volume-plus
+                  name: Volume Up
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_volume_up
+                - type: button
+                  entity: button.livingroom_colada_mute
+                  icon: mdi:volume-mute
+                  name: Mute
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_mute
+                - type: button
+                  entity: button.livingroom_colada_volume_down
+                  icon: mdi:volume-minus
+                  name: Volume Down
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_volume_down
+
+            # Wake Button (separate row)
+            - type: grid
+              columns: 1
+              square: false
+              cards:
+                - type: button
+                  entity: button.livingroom_colada_wake
+                  icon: mdi:power
+                  name: Wake / Power On
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.livingroom_colada_wake
+
+            # App Launchers
+            - type: grid
+              columns: 3
+              square: false
+              cards:
+                - type: button
+                  icon: mdi:netflix
+                  name: Netflix
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_netflix
+                - type: button
+                  icon: mdi:youtube
+                  name: YouTube
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_youtube
+                - type: button
+                  icon: mdi:spotify
+                  name: Spotify
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_spotify
+                - type: button
+                  icon: mdi:alpha-h
+                  name: Hulu
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_hulu
+                - type: button
+                  icon: mdi:disney
+                  name: Disney+
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_disney
+                - type: button
+                  icon: mdi:alpha-p
+                  name: Paramount+
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_paramount
+                - type: button
+                  icon: mdi:alpha-h-circle
+                  name: HBO Max
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_hbomax
+                - type: button
+                  icon: mdi:amazon
+                  name: Prime Video
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_prime
+
+      # ============================================================================
+      # Bedroom Fire TV Buttons (shown when Bedroom selected)
+      # ============================================================================
+      - type: conditional
+        conditions:
+          - entity: input_select.fire_tv_target
+            state: "Bedroom"
+        card:
+          type: vertical-stack
+          cards:
+            # System Buttons
+            - type: grid
+              columns: 4
+              square: false
+              cards:
+                - type: button
+                  entity: button.bedroom_colada_home
+                  icon: mdi:home
+                  name: Home
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_home
+                - type: button
+                  entity: button.bedroom_colada_back
+                  icon: mdi:arrow-left-circle
+                  name: Back
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_back
+                - type: button
+                  entity: button.bedroom_colada_menu
+                  icon: mdi:menu
+                  name: Menu
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_menu
+                - type: button
+                  entity: button.bedroom_colada_sleep
+                  icon: mdi:power-sleep
+                  name: Sleep
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_sleep
+
+            # D-Pad Navigation
+            - type: grid
+              columns: 3
+              square: true
+              cards:
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.bedroom_colada_up
+                  icon: mdi:chevron-up
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_up
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.bedroom_colada_left
+                  icon: mdi:chevron-left
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_left
+                - type: button
+                  entity: button.bedroom_colada_select
+                  name: OK
+                  icon: mdi:circle
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_select
+                - type: button
+                  entity: button.bedroom_colada_right
+                  icon: mdi:chevron-right
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_right
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.bedroom_colada_down
+                  icon: mdi:chevron-down
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_down
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+
+            # Media Control
+            - type: grid
+              columns: 2
+              square: false
+              cards:
+                - type: button
+                  entity: button.bedroom_colada_play
+                  icon: mdi:play
+                  name: Play
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_play
+                - type: button
+                  entity: button.bedroom_colada_pause
+                  icon: mdi:pause
+                  name: Pause
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_pause
+
+            # Volume Control
+            - type: grid
+              columns: 3
+              square: false
+              cards:
+                - type: button
+                  entity: button.bedroom_colada_volume_up
+                  icon: mdi:volume-plus
+                  name: Volume Up
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_volume_up
+                - type: button
+                  entity: button.bedroom_colada_mute
+                  icon: mdi:volume-mute
+                  name: Mute
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_mute
+                - type: button
+                  entity: button.bedroom_colada_volume_down
+                  icon: mdi:volume-minus
+                  name: Volume Down
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_volume_down
+
+            # Wake Button
+            - type: grid
+              columns: 1
+              square: false
+              cards:
+                - type: button
+                  entity: button.bedroom_colada_wake
+                  icon: mdi:power
+                  name: Wake / Power On
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.bedroom_colada_wake
+
+            # App Launchers
+            - type: grid
+              columns: 3
+              square: false
+              cards:
+                - type: button
+                  icon: mdi:netflix
+                  name: Netflix
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_netflix
+                - type: button
+                  icon: mdi:youtube
+                  name: YouTube
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_youtube
+                - type: button
+                  icon: mdi:spotify
+                  name: Spotify
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_spotify
+                - type: button
+                  icon: mdi:alpha-h
+                  name: Hulu
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_hulu
+                - type: button
+                  icon: mdi:disney
+                  name: Disney+
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_disney
+                - type: button
+                  icon: mdi:alpha-p
+                  name: Paramount+
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_paramount
+                - type: button
+                  icon: mdi:alpha-h-circle
+                  name: HBO Max
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_hbomax
+                - type: button
+                  icon: mdi:amazon
+                  name: Prime Video
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_prime
+
+      # ============================================================================
+      # Albin's Fire TV Buttons (shown when Albin selected)
+      # ============================================================================
+      - type: conditional
+        conditions:
+          - entity: input_select.fire_tv_target
+            state: "Albin"
+        card:
+          type: vertical-stack
+          cards:
+            # System Buttons
+            - type: grid
+              columns: 4
+              square: false
+              cards:
+                - type: button
+                  entity: button.albin_colada_home
+                  icon: mdi:home
+                  name: Home
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_home
+                - type: button
+                  entity: button.albin_colada_back
+                  icon: mdi:arrow-left-circle
+                  name: Back
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_back
+                - type: button
+                  entity: button.albin_colada_menu
+                  icon: mdi:menu
+                  name: Menu
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_menu
+                - type: button
+                  entity: button.albin_colada_sleep
+                  icon: mdi:power-sleep
+                  name: Sleep
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_sleep
+
+            # D-Pad Navigation
+            - type: grid
+              columns: 3
+              square: true
+              cards:
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.albin_colada_up
+                  icon: mdi:chevron-up
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_up
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.albin_colada_left
+                  icon: mdi:chevron-left
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_left
+                - type: button
+                  entity: button.albin_colada_select
+                  name: OK
+                  icon: mdi:circle
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_select
+                - type: button
+                  entity: button.albin_colada_right
+                  icon: mdi:chevron-right
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_right
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+                - type: button
+                  entity: button.albin_colada_down
+                  icon: mdi:chevron-down
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_down
+                - type: button
+                  icon: mdi:blank
+                  tap_action:
+                    action: none
+
+            # Media Control
+            - type: grid
+              columns: 2
+              square: false
+              cards:
+                - type: button
+                  entity: button.albin_colada_play
+                  icon: mdi:play
+                  name: Play
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_play
+                - type: button
+                  entity: button.albin_colada_pause
+                  icon: mdi:pause
+                  name: Pause
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_pause
+
+            # Volume Control
+            - type: grid
+              columns: 3
+              square: false
+              cards:
+                - type: button
+                  entity: button.albin_colada_volume_up
+                  icon: mdi:volume-plus
+                  name: Volume Up
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_volume_up
+                - type: button
+                  entity: button.albin_colada_mute
+                  icon: mdi:volume-mute
+                  name: Mute
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_mute
+                - type: button
+                  entity: button.albin_colada_volume_down
+                  icon: mdi:volume-minus
+                  name: Volume Down
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_volume_down
+
+            # Wake Button
+            - type: grid
+              columns: 1
+              square: false
+              cards:
+                - type: button
+                  entity: button.albin_colada_wake
+                  icon: mdi:power
+                  name: Wake / Power On
+                  tap_action:
+                    action: call-service
+                    service: button.press
+                    target:
+                      entity_id: button.albin_colada_wake
+
+            # App Launchers
+            - type: grid
+              columns: 3
+              square: false
+              cards:
+                - type: button
+                  icon: mdi:netflix
+                  name: Netflix
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_netflix
+                - type: button
+                  icon: mdi:youtube
+                  name: YouTube
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_youtube
+                - type: button
+                  icon: mdi:spotify
+                  name: Spotify
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_spotify
+                - type: button
+                  icon: mdi:alpha-h
+                  name: Hulu
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_hulu
+                - type: button
+                  icon: mdi:disney
+                  name: Disney+
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_disney
+                - type: button
+                  icon: mdi:alpha-p
+                  name: Paramount+
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_paramount
+                - type: button
+                  icon: mdi:alpha-h-circle
+                  name: HBO Max
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_hbomax
+                - type: button
+                  icon: mdi:amazon
+                  name: Prime Video
+                  tap_action:
+                    action: call-service
+                    service: script.fire_tv_prime
