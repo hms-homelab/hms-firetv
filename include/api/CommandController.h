@@ -134,7 +134,15 @@ private:
     std::shared_ptr<LightningClient> getClient(const std::string& device_id);
 
     /**
-     * Make async Fire TV API call (non-blocking)
+     * Make async Fire TV API call (non-blocking with timeout)
+     *
+     * Uses Drogon's async HttpClient with:
+     * - Configurable timeout (default: 5 seconds via FIRETV_API_TIMEOUT_SECONDS)
+     * - SSL verification disabled (Fire TV uses self-signed certs)
+     * - Automatic timeout handling (ReqResult::Timeout)
+     *
+     * Note: Individual request cancellation is not supported by Drogon's HttpClient.
+     * Requests timeout automatically after the configured duration.
      *
      * @param device_id Device identifier
      * @param endpoint API endpoint (e.g., "/navigation")
@@ -162,6 +170,9 @@ private:
     void sendError(std::function<void(const HttpResponsePtr&)>&& callback,
                    HttpStatusCode status,
                    const std::string& message);
+
+    // Fire TV API timeout configuration
+    static constexpr double FIRETV_API_TIMEOUT_SECONDS = 5.0;  // 5 seconds
 
     // Static LRU cache of Lightning clients per device (max 100 entries, 1 hour TTL)
     // Static to persist across controller instances
