@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colada Lightning - Fire TV Control</title>
+
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3/dist/tailwind.min.css" rel="stylesheet">
+
+    <!-- Material Design Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <!-- App Container -->
+    <div id="app" class="flex h-screen overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+            <!-- Logo -->
+            <div class="p-6 border-b border-gray-700">
+                <h1 class="text-2xl font-bold text-orange-500 flex items-center">
+                    <span class="mdi mdi-fire mr-2"></span>
+                    Colada Lightning
+                </h1>
+                <p class="text-sm text-gray-400 mt-1">Fire TV Control</p>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="flex-1 overflow-y-auto p-4">
+                <ul class="space-y-2">
+                    <li>
+                        <a href="#/" class="nav-link flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors" data-route="/">
+                            <span class="mdi mdi-view-dashboard mr-3 text-xl"></span>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#/remote" class="nav-link flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors" data-route="/remote">
+                            <span class="mdi mdi-remote mr-3 text-xl"></span>
+                            <span>Remote Control</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#/devices" class="nav-link flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors" data-route="/devices">
+                            <span class="mdi mdi-television mr-3 text-xl"></span>
+                            <span>Devices</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#/apps" class="nav-link flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors" data-route="/apps">
+                            <span class="mdi mdi-application mr-3 text-xl"></span>
+                            <span>Apps</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#/settings" class="nav-link flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors" data-route="/settings">
+                            <span class="mdi mdi-cog mr-3 text-xl"></span>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Footer Links -->
+            <div class="p-4 border-t border-gray-700">
+                <a href="/docs" target="_blank" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:text-orange-500 transition-colors">
+                    <span class="mdi mdi-api mr-2"></span>
+                    API Documentation
+                </a>
+                <div class="mt-2 px-4 text-xs text-gray-500">
+                    Version 1.0.0
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 id="page-title" class="text-xl font-semibold text-gray-100">Dashboard</h2>
+                        <p id="page-subtitle" class="text-sm text-gray-400 mt-1">Welcome to Colada Lightning</p>
+                    </div>
+                    <div id="page-actions" class="flex items-center space-x-3">
+                        <!-- Dynamic action buttons will be inserted here -->
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div id="content" class="flex-1 overflow-y-auto p-6">
+                <!-- Content will be dynamically loaded here -->
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <div class="mdi mdi-loading mdi-spin text-6xl text-orange-500"></div>
+                        <p class="mt-4 text-gray-400">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2">
+        <!-- Toasts will be dynamically inserted here -->
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modal-container" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <!-- Modals will be dynamically inserted here -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/router.js"></script>
+    <script src="/static/js/pages/dashboard.js"></script>
+    <script src="/static/js/pages/remote.js"></script>
+    <script src="/static/js/pages/devices.js"></script>
+    <script src="/static/js/pages/apps.js"></script>
+    <script src="/static/js/pages/settings.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
