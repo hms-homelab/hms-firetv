@@ -441,15 +441,10 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
     // Note: Fire TV uses self-signed SSL certificates
     std::string url = "https://" + device->ip_address + ":8080";
 
-    // Create async HTTP client with SSL verification disabled
-    auto client = HttpClient::newHttpClient(url);
+    // Create async HTTP client with SSL verification disabled (last param = false)
+    // Parameters: hostString, loop, useOldTLS, validateCert
+    auto client = HttpClient::newHttpClient(url, nullptr, false, false);
     client->enableCookies();
-
-    // Disable SSL verification (Fire TV uses self-signed certificates)
-    client->setSslVerify(false);
-
-    // Set timeout for Fire TV API calls
-    client->setTimeout(FIRETV_API_TIMEOUT_SECONDS);
 
     // Create POST request
     auto req = HttpRequest::newHttpJsonRequest(json_body);
@@ -517,7 +512,7 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
 
             completion_callback(false, response_time_ms, error_msg);
         }
-    });
+    }, FIRETV_API_TIMEOUT_SECONDS);  // Pass timeout to sendRequest
 }
 
 std::shared_ptr<LightningClient> CommandController::getClient(const std::string& device_id) {

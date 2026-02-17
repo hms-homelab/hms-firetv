@@ -334,10 +334,9 @@ bool MQTTClient::publish(const std::string& topic,
 
         auto token = client_->publish(pubmsg);
 
-        std::cout << "[MQTTClient] 🔍 Publish token created, waiting for PUBACK..." << std::endl;
-        token->wait();
-
-        std::cout << "[MQTTClient] 🔍 PUBACK received" << std::endl;
+        // Don't wait for PUBACK synchronously - it causes deadlock when called from callback thread
+        // The Paho MQTT library will handle the PUBACK asynchronously
+        std::cout << "[MQTTClient] 🔍 Publish sent (async, not waiting for PUBACK)" << std::endl;
         std::cout << "[MQTTClient] 🔍 Connection state after publish: is_connected="
                   << client_->is_connected() << std::endl;
 
