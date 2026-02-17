@@ -46,6 +46,14 @@ void CommandHandler::handleCommand(const std::string& device_id, const Json::Val
         return;
     }
 
+    // Ensure device is awake (skip for turn_on which handles this itself)
+    if (command != "turn_on") {
+        if (!ensureDeviceAwake(*client)) {
+            std::cerr << "[CommandHandler] Failed to wake device " << device_id << std::endl;
+            return;
+        }
+    }
+
     // Route command
     if (command.find("media_") == 0) {
         handleMediaCommand(*client, command);
@@ -286,6 +294,34 @@ std::string CommandHandler::getPackageForApp(const std::string& app_name) {
     }
 
     return "";  // Not found
+}
+
+bool CommandHandler::ensureDeviceAwake(LightningClient& client) {
+    // Check if Lightning API is responding
+    if (client.isLightningApiAvailable()) {
+        return true;  // Already awake
+    }
+
+    std::cout << "[CommandHandler] Device appears to be asleep, attempting wake..." << std::endl;
+
+    // Try to wake the device
+    if (!client.wakeDevice()) {
+        std::cerr << "[CommandHandler] Wake request failed" << std::endl;
+        return false;
+    }
+
+    // Wait for device to wake up (typically takes 2-5 seconds)
+    for (int attempt = 0; attempt < 5; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        if (client.isLightningApiAvailable()) {
+            std::cout << "[CommandHandler] Device woke up after " << (attempt + 1) << "s" << std::endl;
+            return true;
+        }
+    }
+
+    std::cerr << "[CommandHandler] Device did not wake up after 5 seconds" << std::endl;
+    return false;
 }
 
 void CommandHandler::handleTextInputCommand(LightningClient& client, const Json::Value& payload) {

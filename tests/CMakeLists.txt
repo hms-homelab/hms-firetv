@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Find GoogleTest
+# Find GoogleTest and GMock
 find_package(GTest REQUIRED)
+find_package(GMock QUIET)
 find_package(Threads REQUIRED)
 
 # Include directories
@@ -15,6 +16,8 @@ include_directories(
 set(TEST_SOURCES
     test_device_controller.cpp
     test_command_controller.cpp
+    test_command_handler.cpp
+    test_mqtt_client.cpp
     test_pairing_controller.cpp
     test_apps_controller.cpp
     test_stats_controller.cpp

@@ -31,7 +31,7 @@ public:
      */
     void handleCommand(const std::string& device_id, const Json::Value& payload);
 
-private:
+protected:
     /**
      * Get or create Lightning client for device
      *
@@ -97,6 +97,17 @@ private:
      * @return Package name (e.g., "com.netflix.ninja")
      */
     std::string getPackageForApp(const std::string& app_name);
+
+    /**
+     * Ensure device is awake before sending commands
+     *
+     * Checks if Lightning API is responding. If not, wakes the device
+     * and waits for it to become available.
+     *
+     * @param client Lightning client
+     * @return true if device is awake and ready, false if wake failed
+     */
+    bool ensureDeviceAwake(LightningClient& client);
 
     // Lightning client cache
     std::map<std::string, std::shared_ptr<LightningClient>> clients_;
