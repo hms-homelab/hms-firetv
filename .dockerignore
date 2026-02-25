@@ -1,0 +1,49 @@
+# Build directories
+build/
+cmake-build-*/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests (not needed in production image)
+tests/
+Testing/
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# CI/CD
+.github/
+
+# Logs and data
+*.log
+logs/
+
+# Environment and secrets
+.env
+*.pem
+*.key
+secrets/
+
+# Service files
+hms-firetv.service
+
+# Docker
+docker-compose.yml
+Dockerfile
+schema.sql
+
+# Misc
+*.backup
+*.bak
+*~
+.DS_Store
