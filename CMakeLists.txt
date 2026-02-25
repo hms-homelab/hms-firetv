@@ -39,7 +39,7 @@ target_link_libraries(${PROJECT_NAME}
     Drogon::Drogon
     jsoncpp_lib
     eclipse-paho-mqtt-c::paho-mqtt3as  # C library with SSL (async)
-    /usr/local/lib/libpaho-mqttpp3.so  # C++ wrapper (direct path to avoid broken CMake config)
+    PahoMqttCpp::paho-mqttpp3  # C++ wrapper
     ${PQXX_LIB}
     ${PQ_LIB}
     ${CURL_LIBRARIES}
@@ -51,8 +51,10 @@ target_link_libraries(${PROJECT_NAME}
 # Install target
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 
-# Enable testing
-enable_testing()
+# Testing support
+option(BUILD_TESTS "Build unit tests" ON)
 
-# Add tests subdirectory
-add_subdirectory(tests)
+if(BUILD_TESTS AND EXISTS "${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt")
+    enable_testing()
+    add_subdirectory(tests)
+endif()
