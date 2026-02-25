@@ -1,101 +1,58 @@
-# ==============================================================================
-# HMS FireTV - Multi-stage Dockerfile
-# ==============================================================================
-#
-# Stage 1: Build environment with all dependencies
-# Stage 2: Runtime environment with minimal footprint
-#
-# Usage:
-#   docker build -t hms-firetv:latest .
-#   docker run -d --env-file .env -p 8888:8888 hms-firetv:latest
-#
+# HMS-FireTV - Multi-stage Dockerfile
+# Uses trixie (Debian 13) for Drogon + Paho MQTT from repos (multi-arch safe)
 
-# ==============================================================================
+# =============================================================================
 # Stage 1: Builder
-# ==============================================================================
-FROM debian:bookworm-slim AS builder
+# =============================================================================
+FROM debian:trixie-slim AS builder
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
+# Install build dependencies (all from Debian repos, multi-arch safe)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
-    git \
-    libpqxx-dev \
-    libcurl4-openssl-dev \
+    ca-certificates \
+    libdrogon-dev \
     libjsoncpp-dev \
+    libpqxx-dev \
+    libpaho-mqttpp-dev \
+    libpaho-mqtt-dev \
+    libcurl4-openssl-dev \
     libssl-dev \
+    libsqlite3-dev \
+    default-libmysqlclient-dev \
+    libhiredis-dev \
+    libyaml-cpp-dev \
     uuid-dev \
     zlib1g-dev \
-    wget \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Paho MQTT C library
-WORKDIR /tmp
-RUN git clone https://github.com/eclipse/paho.mqtt.c.git && \
-    cd paho.mqtt.c && \
-    git checkout v1.3.13 && \
-    cmake -Bbuild -H. -DPAHO_WITH_SSL=ON -DPAHO_ENABLE_TESTING=OFF && \
-    cmake --build build/ --target install && \
-    ldconfig
-
-# Install Paho MQTT C++ library
-RUN git clone https://github.com/eclipse/paho.mqtt.cpp.git && \
-    cd paho.mqtt.cpp && \
-    git checkout v1.3.2 && \
-    cmake -Bbuild -H. -DPAHO_BUILD_DOCUMENTATION=OFF -DPAHO_BUILD_SAMPLES=OFF && \
-    cmake --build build/ --target install && \
-    ldconfig
-
-# Install Drogon framework
-RUN git clone https://github.com/drogonframework/drogon && \
-    cd drogon && \
-    git checkout v1.9.3 && \
-    git submodule update --init && \
-    mkdir build && cd build && \
-    cmake .. \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_EXAMPLES=OFF \
-        -DBUILD_CTL=OFF \
-        -DBUILD_ORM=OFF && \
-    make -j$(nproc) && \
-    make install && \
-    ldconfig
 
 # Copy source code
 WORKDIR /app
-COPY include/ include/
+COPY CMakeLists.txt VERSION ./
 COPY src/ src/
+COPY include/ include/
 COPY static/ static/
-COPY CMakeLists.txt .
 
-# Build HMS FireTV
+# Build HMS-FireTV (disable tests for production image)
 RUN mkdir build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && \
     make -j$(nproc) && \
     strip hms_firetv
 
-# ==============================================================================
+# =============================================================================
 # Stage 2: Runtime
-# ==============================================================================
-FROM debian:bookworm-slim
+# =============================================================================
+FROM debian:trixie-slim
 
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
-    libpqxx-6.4 \
-    libcurl4 \
-    libjsoncpp25 \
-    libssl3 \
-    libuuid1 \
-    zlib1g \
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
+    libdrogon1t64 \
+    libpqxx-7.10 \
+    libpaho-mqtt1.3 \
+    libpaho-mqttpp3-1 \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy runtime libraries from builder
-COPY --from=builder /usr/local/lib/libpaho* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libdrogon* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libtrantor* /usr/local/lib/
-RUN ldconfig
 
 # Create app directory for static files
 WORKDIR /app
