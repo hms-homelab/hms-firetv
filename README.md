@@ -6,6 +6,7 @@
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 [![Docker](https://img.shields.io/badge/docker-supported-blue)]()
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-%23FFDD00.svg?logo=buy-me-a-coffee)](https://www.buymeacoffee.com/aamat09)
 
 ---
 
@@ -526,6 +527,13 @@ docker pull hms-homelab/hms-firetv:latest
 ```
 
 ---
+---
+
+## ☕ Support
+
+If this project is useful to you, consider buying me a coffee!
+
+[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/aamat09)
 
 ## License
 
