@@ -203,6 +203,11 @@ private:
      */
     void onConnectionLost(const std::string& cause);
 
+    /**
+     * Reconnected callback (internal) — restores connected_ and re-subscribes
+     */
+    void onReconnected(const std::string& cause);
+
     // MQTT client
     std::unique_ptr<mqtt::async_client> client_;
 
@@ -222,6 +227,7 @@ private:
     std::string username_;
     std::string password_;
     bool connected_;
+    bool initial_connect_done_ = false;
     mutable std::mutex connection_mutex_;
 
     // Auto-reconnect

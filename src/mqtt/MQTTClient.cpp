@@ -1,8 +1,6 @@
 #include "mqtt/MQTTClient.h"
 #include "repositories/DeviceRepository.h"
 #include <iostream>
-#include <thread>
-#include <chrono>
 
 namespace hms_firetv {
 
@@ -38,61 +36,46 @@ bool MQTTClient::connect(const std::string& broker_address,
     username_ = username;
     password_ = password;
 
-    std::cout << "[MQTTClient] 🔍 ========== CONNECTING ==========" << std::endl;
     std::cout << "[MQTTClient] Connecting to " << broker_address << "..." << std::endl;
-    std::cout << "[MQTTClient] 🔍 Username: " << username << std::endl;
 
     try {
         // Create client with unique ID
         std::string client_id = "hms_firetv_" + std::to_string(std::time(nullptr));
-        std::cout << "[MQTTClient] 🔍 Client ID: " << client_id << std::endl;
-
         client_ = std::make_unique<mqtt::async_client>(broker_address, client_id);
-        std::cout << "[MQTTClient] 🔍 async_client created" << std::endl;
 
         // Set callbacks
-        std::cout << "[MQTTClient] 🔍 Setting message callback..." << std::endl;
         client_->set_message_callback([this](mqtt::const_message_ptr msg) {
-            std::cout << "[MQTTClient] 🎯 Callback lambda invoked!" << std::endl;
             onMessageArrived(msg);
         });
 
-        std::cout << "[MQTTClient] 🔍 Setting connection lost handler..." << std::endl;
         client_->set_connection_lost_handler([this](const std::string& cause) {
             onConnectionLost(cause);
         });
 
+        client_->set_connected_handler([this](const std::string& cause) {
+            onReconnected(cause);
+        });
+
         // Connection options
-        std::cout << "[MQTTClient] 🔍 Configuring connection options..." << std::endl;
         mqtt::connect_options connOpts;
         connOpts.set_keep_alive_interval(20);
         connOpts.set_clean_session(true);
         connOpts.set_user_name(username);
         connOpts.set_password(password);
-
-        // Enable auto-reconnect with exponential backoff
-        // Min delay: 1 second, Max delay: 64 seconds
-        connOpts.set_automatic_reconnect(1, 64);  // min_retry_interval, max_retry_interval
-        std::cout << "[MQTTClient] 🔍 Auto-reconnect enabled (1-64 seconds)" << std::endl;
+        connOpts.set_automatic_reconnect(1, 64);
 
         // Connect (blocking)
-        std::cout << "[MQTTClient] 🔍 Calling client_->connect()..." << std::endl;
         mqtt::token_ptr conntok = client_->connect(connOpts);
-        std::cout << "[MQTTClient] 🔍 Waiting for CONNACK..." << std::endl;
-        conntok->wait();  // Wait for connection
+        conntok->wait();
 
         connected_ = true;
-        std::cout << "[MQTTClient] ✅ Connected successfully (CONNACK received)" << std::endl;
-        std::cout << "[MQTTClient] 📊 Connection state: is_connected=" << client_->is_connected()
-                  << ", can_publish=" << (client_->is_connected() ? "yes" : "no") << std::endl;
-        std::cout << "[MQTTClient] 🔍 =====================================" << std::endl;
+        initial_connect_done_ = true;
+        std::cout << "[MQTTClient] Connected successfully" << std::endl;
 
         return true;
 
     } catch (const mqtt::exception& e) {
-        std::cerr << "[MQTTClient] ❌ Connection failed: " << e.what() << std::endl;
-        std::cerr << "[MQTTClient] 🔍 Exception code: " << e.get_reason_code()
-                  << ", message: " << e.get_message() << std::endl;
+        std::cerr << "[MQTTClient] Connection failed: " << e.what() << std::endl;
         connected_ = false;
         return false;
     }
@@ -150,14 +133,6 @@ bool MQTTClient::subscribeToCommands(const std::string& device_id, CommandCallba
 }
 
 bool MQTTClient::subscribeToAllCommands(CommandCallback callback) {
-    std::cout << "[MQTTClient] 🔍 subscribeToAllCommands() called" << std::endl;
-    std::cout << "[MQTTClient] 🔍 Pre-check: connected_=" << connected_
-              << ", client_=" << (client_ ? "valid" : "null") << std::endl;
-
-    if (client_) {
-        std::cout << "[MQTTClient] 🔍 Pre-check: client_->is_connected()=" << client_->is_connected() << std::endl;
-    }
-
     if (!isConnected()) {
         std::cerr << "[MQTTClient] Not connected, cannot subscribe" << std::endl;
         return false;
@@ -171,15 +146,11 @@ bool MQTTClient::subscribeToAllCommands(CommandCallback callback) {
     // 2. Subscribe to maestro_hub/colada/{device_id}/+ for each device
     // 3. This avoids wildcard issues while still covering all devices
 
-    std::cout << "[MQTTClient] 📊 Querying devices from database..." << std::endl;
-
     try {
-        // Get all devices from database
         auto devices = DeviceRepository::getInstance().getAllDevices();
-        std::cout << "[MQTTClient] 🔍 Found " << devices.size() << " devices in database" << std::endl;
 
         if (devices.empty()) {
-            std::cerr << "[MQTTClient] ⚠️  No devices found in database, no subscriptions made" << std::endl;
+            std::cerr << "[MQTTClient] No devices found in database" << std::endl;
             return false;
         }
 
@@ -187,47 +158,33 @@ bool MQTTClient::subscribeToAllCommands(CommandCallback callback) {
         {
             std::lock_guard<std::mutex> lock(callbacks_mutex_);
             command_callbacks_["*"] = callback;
-            std::cout << "[MQTTClient] 🔍 Wildcard callback registered" << std::endl;
         }
 
-        // CRITICAL: Use batch subscription API to subscribe to ALL topics at once
-        // Sequential subscriptions don't work properly - only the last one works!
-        std::cout << "[MQTTClient] 📡 Preparing batch subscription for " << devices.size() << " device topics + homeassistant/status" << std::endl;
-
-        // Build topic list
+        // Build topic list — one per device + homeassistant/status
         std::vector<std::string> all_topics;
         for (const auto& device : devices) {
-            std::string device_topic = "maestro_hub/colada/" + device.device_id + "/+";
-            all_topics.push_back(device_topic);
-            std::cout << "[MQTTClient] 📋 Adding to batch: " << device_topic << std::endl;
+            all_topics.push_back("maestro_hub/colada/" + device.device_id + "/+");
         }
-
-        // Add homeassistant/status
         all_topics.push_back("homeassistant/status");
-        std::cout << "[MQTTClient] 📋 Adding to batch: homeassistant/status" << std::endl;
 
         // Create QoS vector (QoS 1 for all)
         std::vector<int> qos_levels(all_topics.size(), 1);
 
         try {
-            // Create string_collection for Paho MQTT
             auto topics_ptr = mqtt::string_collection::create(all_topics);
-
-            // Subscribe to ALL topics in a SINGLE call
-            std::cout << "[MQTTClient] 📡 Subscribing to " << all_topics.size() << " topics in ONE batch..." << std::endl;
             auto token = client_->subscribe(topics_ptr, qos_levels);
-            token->wait();  // Wait for SUBACK
+            token->wait();
 
-            std::cout << "[MQTTClient] ✅ Successfully batch-subscribed to " << all_topics.size() << " topics" << std::endl;
+            std::cout << "[MQTTClient] Subscribed to " << all_topics.size() << " topics" << std::endl;
             return true;
 
         } catch (const mqtt::exception& e) {
-            std::cerr << "[MQTTClient] ❌ Batch subscription failed: " << e.what() << std::endl;
+            std::cerr << "[MQTTClient] Batch subscription failed: " << e.what() << std::endl;
             return false;
         }
 
     } catch (const std::exception& e) {
-        std::cerr << "[MQTTClient] ❌ Failed to query devices or subscribe: " << e.what() << std::endl;
+        std::cerr << "[MQTTClient] Failed to query devices or subscribe: " << e.what() << std::endl;
         return false;
     }
 }
@@ -308,37 +265,17 @@ bool MQTTClient::publish(const std::string& topic,
                          const std::string& payload,
                          int qos,
                          bool retain) {
-    std::cout << "[MQTTClient] 🔍 publish() called: topic=" << topic
-              << ", payload=" << payload << ", qos=" << qos << ", retain=" << retain << std::endl;
-    std::cout << "[MQTTClient] 🔍 Pre-publish check: connected_=" << connected_
-              << ", client_=" << (client_ ? "valid" : "null") << std::endl;
-
-    if (client_) {
-        std::cout << "[MQTTClient] 🔍 Pre-publish check: client_->is_connected()=" << client_->is_connected() << std::endl;
-    }
-
     if (!isConnected()) {
         std::cerr << "[MQTTClient] Not connected, cannot publish" << std::endl;
         return false;
     }
 
     try {
-        std::cout << "[MQTTClient] 🔍 Creating MQTT message..." << std::endl;
         mqtt::message_ptr pubmsg = mqtt::make_message(topic, payload);
         pubmsg->set_qos(qos);
         pubmsg->set_retained(retain);
 
-        std::cout << "[MQTTClient] 🔍 Message created, calling client_->publish()..." << std::endl;
-        std::cout << "[MQTTClient] 🔍 Connection state before publish: is_connected="
-                  << client_->is_connected() << std::endl;
-
-        auto token = client_->publish(pubmsg);
-
-        // Don't wait for PUBACK synchronously - it causes deadlock when called from callback thread
-        // The Paho MQTT library will handle the PUBACK asynchronously
-        std::cout << "[MQTTClient] 🔍 Publish sent (async, not waiting for PUBACK)" << std::endl;
-        std::cout << "[MQTTClient] 🔍 Connection state after publish: is_connected="
-                  << client_->is_connected() << std::endl;
+        client_->publish(pubmsg);  // Async, no wait
 
         std::cout << "[MQTTClient] Published to " << topic
                   << " (" << payload.length() << " bytes)"
@@ -347,12 +284,7 @@ bool MQTTClient::publish(const std::string& topic,
         return true;
 
     } catch (const mqtt::exception& e) {
-        std::cerr << "[MQTTClient] ❌ Publish failed: " << e.what() << std::endl;
-        std::cerr << "[MQTTClient] 🔍 Exception code: " << e.get_reason_code()
-                  << ", message: " << e.get_message() << std::endl;
-        std::cerr << "[MQTTClient] 🔍 Connection state after exception: connected_=" << connected_
-                  << ", client_->is_connected()=" << (client_ ? std::to_string(client_->is_connected()) : "N/A")
-                  << std::endl;
+        std::cerr << "[MQTTClient] Publish failed: " << e.what() << std::endl;
         return false;
     }
 }
@@ -385,26 +317,14 @@ std::string MQTTClient::extractDeviceId(const std::string& topic) const {
 // ============================================================================
 
 void MQTTClient::onMessageArrived(mqtt::const_message_ptr msg) {
-    std::cout << "[MQTTClient] 🚀 onMessageArrived() ENTERED!" << std::endl;
-
     std::string topic = msg->get_topic();
     std::string payload_str = msg->to_string();
-
-    std::cout << "[MQTTClient] 📨 ========== MESSAGE ARRIVED ==========" << std::endl;
-    std::cout << "[MQTTClient] 📨 Topic: " << topic << std::endl;
-    std::cout << "[MQTTClient] 📨 Payload length: " << payload_str.length() << " bytes" << std::endl;
-    std::cout << "[MQTTClient] 📄 Payload: " << payload_str << std::endl;
-    std::cout << "[MQTTClient] 🔍 QoS: " << msg->get_qos() << std::endl;
-    std::cout << "[MQTTClient] 🔍 Retained: " << msg->is_retained() << std::endl;
-    std::cout << "[MQTTClient] 🔍 Thread ID: " << std::this_thread::get_id() << std::endl;
-    std::cout << "[MQTTClient] 🔍 Connection state: is_connected=" << client_->is_connected() << std::endl;
 
     // Check for exact match in topic callbacks first (e.g., homeassistant/status)
     {
         std::lock_guard<std::mutex> lock(topic_callbacks_mutex_);
         auto it = topic_callbacks_.find(topic);
         if (it != topic_callbacks_.end()) {
-            std::cout << "[MQTTClient] 🎯 Found exact match callback for topic: " << topic << std::endl;
             it->second(topic, payload_str);
             return; // Stop processing after exact match
         }
@@ -494,29 +414,63 @@ void MQTTClient::onMessageArrived(mqtt::const_message_ptr msg) {
 }
 
 void MQTTClient::onConnectionLost(const std::string& cause) {
-    std::cerr << "[MQTTClient] ⚠️  ========== CONNECTION LOST ==========" << std::endl;
-    std::cerr << "[MQTTClient] ⚠️  Cause: " << cause << std::endl;
-    std::cerr << "[MQTTClient] 🔍 Thread ID: " << std::this_thread::get_id() << std::endl;
-    std::cerr << "[MQTTClient] 🔍 Time: " << std::time(nullptr) << std::endl;
-
     {
         std::lock_guard<std::mutex> lock(connection_mutex_);
-        std::cerr << "[MQTTClient] 🔍 Before update: connected_=" << connected_ << std::endl;
         connected_ = false;
-        std::cerr << "[MQTTClient] 🔍 After update: connected_=" << connected_ << std::endl;
     }
-
-    if (client_) {
-        std::cerr << "[MQTTClient] 🔍 client_->is_connected()=" << client_->is_connected() << std::endl;
-    } else {
-        std::cerr << "[MQTTClient] 🔍 client_ is NULL!" << std::endl;
-    }
+    std::cerr << "[MQTTClient] Connection lost: " << cause << std::endl;
 
     if (auto_reconnect_) {
-        std::cout << "[MQTTClient] Auto-reconnect is enabled by paho-mqtt" << std::endl;
+        std::cout << "[MQTTClient] Auto-reconnect enabled (handled by paho-mqtt)" << std::endl;
+    }
+}
+
+void MQTTClient::onReconnected(const std::string& cause) {
+    if (!initial_connect_done_) {
+        return;
     }
 
-    std::cerr << "[MQTTClient] ⚠️  ======================================" << std::endl;
+    {
+        std::unique_lock<std::mutex> lock(connection_mutex_, std::try_to_lock);
+        connected_ = true;
+    }
+    std::cout << "[MQTTClient] Reconnected: " << cause << std::endl;
+
+    // Re-subscribe — fire-and-forget (no ->wait()) to avoid paho callback thread deadlock
+    bool has_wildcard = false;
+    {
+        std::lock_guard<std::mutex> lock(callbacks_mutex_);
+        has_wildcard = command_callbacks_.count("*") > 0;
+    }
+
+    if (has_wildcard) {
+        try {
+            auto devices = DeviceRepository::getInstance().getAllDevices();
+            std::vector<std::string> all_topics;
+            for (const auto& device : devices) {
+                all_topics.push_back("maestro_hub/colada/" + device.device_id + "/+");
+            }
+            all_topics.push_back("homeassistant/status");
+            std::vector<int> qos_levels(all_topics.size(), 1);
+            auto topics_ptr = mqtt::string_collection::create(all_topics);
+            client_->subscribe(topics_ptr, qos_levels);
+            std::cout << "[MQTTClient] Re-subscribed to " << all_topics.size() << " topics after reconnect" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[MQTTClient] Re-subscribe failed: " << e.what() << std::endl;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(topic_callbacks_mutex_);
+        for (const auto& [topic, callback] : topic_callbacks_) {
+            try {
+                client_->subscribe(topic, 1);
+                std::cout << "[MQTTClient] Re-subscribed to " << topic << std::endl;
+            } catch (const mqtt::exception& e) {
+                std::cerr << "[MQTTClient] Re-subscribe failed for " << topic << ": " << e.what() << std::endl;
+            }
+        }
+    }
 }
 
 } // namespace hms_firetv
