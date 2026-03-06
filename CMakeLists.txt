@@ -39,7 +39,7 @@ target_link_libraries(${PROJECT_NAME}
     Drogon::Drogon
     jsoncpp_lib
     eclipse-paho-mqtt-c::paho-mqtt3as  # C library with SSL (async)
-    PahoMqttCpp::paho-mqttpp3  # C++ wrapper
+    /usr/local/lib/libpaho-mqttpp3.so  # C++ wrapper (direct path, matches test config)
     ${PQXX_LIB}
     ${PQ_LIB}
     ${CURL_LIBRARIES}
