@@ -14,6 +14,12 @@ find_package(eclipse-paho-mqtt-c REQUIRED)  # Find C library first
 find_package(PahoMqttCpp REQUIRED)
 find_package(CURL REQUIRED)
 
+# Find paho C++ wrapper (prefer /usr/local for source builds, falls back to system)
+find_library(PAHO_MQTTPP3_LIB paho-mqttpp3 PATHS /usr/local/lib NO_DEFAULT_PATH)
+if(NOT PAHO_MQTTPP3_LIB)
+    find_library(PAHO_MQTTPP3_LIB paho-mqttpp3)
+endif()
+
 # Find libpqxx (may need manual path if not in standard location)
 find_library(PQXX_LIB pqxx)
 find_library(PQ_LIB pq)
@@ -39,7 +45,7 @@ target_link_libraries(${PROJECT_NAME}
     Drogon::Drogon
     jsoncpp_lib
     eclipse-paho-mqtt-c::paho-mqtt3as  # C library with SSL (async)
-    /usr/local/lib/libpaho-mqttpp3.so  # C++ wrapper (direct path, matches test config)
+    ${PAHO_MQTTPP3_LIB}  # C++ wrapper (found via find_library)
     ${PQXX_LIB}
     ${PQ_LIB}
     ${CURL_LIBRARIES}
