@@ -2,10 +2,6 @@ name: Docker Build and Publish
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - develop
     tags:
       - 'v*'
   pull_request:
