@@ -1,79 +1,80 @@
-# HMS-FireTV - Multi-stage Dockerfile
-# Uses trixie (Debian 13) for Drogon + Paho MQTT from repos (multi-arch safe)
+# HMS-FireTV - Multi-stage Docker build
+# C++ Fire TV Lightning service with Angular web UI
 
 # =============================================================================
-# Stage 1: Builder
+# Stage 1: Angular UI Builder
+# =============================================================================
+FROM node:22-slim AS ui-builder
+
+WORKDIR /ui
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npx ng build --configuration production
+
+# =============================================================================
+# Stage 2: C++ Builder
 # =============================================================================
 FROM debian:trixie-slim AS builder
 
-# Install build dependencies (all from Debian repos, multi-arch safe)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     ca-certificates \
-    libdrogon-dev \
-    libjsoncpp-dev \
-    libpqxx-dev \
-    libpaho-mqttpp-dev \
-    libpaho-mqtt-dev \
-    libcurl4-openssl-dev \
+    pkg-config \
     libssl-dev \
-    libsqlite3-dev \
-    default-libmysqlclient-dev \
-    libhiredis-dev \
-    libyaml-cpp-dev \
-    uuid-dev \
-    zlib1g-dev \
+    libjsoncpp-dev \
+    libdrogon-dev \
+    libpqxx-dev \
+    libpaho-mqtt-dev \
+    libpaho-mqttpp-dev \
+    libcurl4-openssl-dev \
+    uuid-dev libhiredis-dev libbrotli-dev zlib1g-dev \
+    libmariadb-dev libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy source code
-WORKDIR /app
+WORKDIR /build
 COPY CMakeLists.txt VERSION ./
-COPY src/ src/
-COPY include/ include/
-COPY static/ static/
+COPY src/ ./src/
+COPY include/ ./include/
 
-# Build HMS-FireTV (disable tests for production image)
 RUN mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF .. && \
     make -j$(nproc) && \
     strip hms_firetv
 
 # =============================================================================
-# Stage 2: Runtime
+# Stage 3: Runtime
 # =============================================================================
 FROM debian:trixie-slim
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    libssl3 \
+    libjsoncpp26 \
     libdrogon1t64 \
+    libtrantor1 \
     libpqxx-7.10 \
     libpaho-mqtt1.3 \
     libpaho-mqttpp3-1 \
+    libcurl4t64 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory for static files
-WORKDIR /app
+RUN useradd -r -u 1000 -m -s /bin/bash firetv
 
-# Copy binary and static files
-COPY --from=builder /app/build/hms_firetv /usr/local/bin/hms_firetv
-COPY --from=builder /app/static ./static
+COPY --from=builder /build/build/hms_firetv /usr/local/bin/hms_firetv
+RUN chmod +x /usr/local/bin/hms_firetv
 
-# Create non-root user and set permissions
-RUN useradd -r -s /bin/false hmsfiretv && \
-    chown -R hmsfiretv:hmsfiretv /app
+COPY --from=ui-builder /ui/dist/frontend/browser/ /home/firetv/static/
+RUN chown -R firetv:firetv /home/firetv/static
 
-# Switch to non-root user
-USER hmsfiretv
+USER firetv
+WORKDIR /home/firetv
 
-# Expose API port
-EXPOSE 8888
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8888/health || exit 1
 
-# Run the service
+EXPOSE 8888
+
 CMD ["/usr/local/bin/hms_firetv"]

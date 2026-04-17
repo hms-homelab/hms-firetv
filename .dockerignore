@@ -42,6 +42,14 @@ docker-compose.yml
 Dockerfile
 schema.sql
 
+# Frontend build artifacts (built in Docker stage)
+frontend/dist/
+frontend/node_modules/
+frontend/.angular/
+
+# Static (built from frontend in Docker)
+static/
+
 # Misc
 *.backup
 *.bak
