@@ -1,5 +1,6 @@
 #include <drogon/drogon.h>
 #include <iostream>
+#include <fstream>
 #include <csignal>
 #include "utils/ConfigManager.h"
 #include "services/DatabaseService.h"
@@ -13,6 +14,7 @@
 #include "api/PairingController.h"
 #include "api/AppsController.h"
 #include "api/StatsController.h"
+#include "services/DiscoveryService.h"
 
 using namespace drogon;
 using namespace hms_firetv;
@@ -154,6 +156,17 @@ int main() {
             std::cerr << "  Service will continue but MQTT features will be unavailable\n";
         }
 
+        // Initialize device discovery service
+        std::string discovery_subnet = ConfigManager::getEnv("DISCOVERY_SUBNET", "192.168.2");
+        int discovery_interval = ConfigManager::getEnvInt("DISCOVERY_INTERVAL", 300);
+        auto discovery_service = std::make_shared<DiscoveryService>(
+            discovery_subnet, discovery_interval);
+        if (mqtt_client) {
+            discovery_service->setMqttClient(mqtt_client);
+        }
+        discovery_service->start();
+        std::cout << "  ✓ DiscoveryService started (every " << discovery_interval << "s)\n";
+
         std::cout << "Services initialized\n";
         std::cout << "--------------------------------------------------------------------------------\n";
 
@@ -165,8 +178,35 @@ int main() {
             .setMaxConnectionNum(10000)
             .setMaxConnectionNumPerIP(0)  // No limit per IP
             .setClientMaxBodySize(10 * 1024 * 1024)  // 10MB max body
-            .setDocumentRoot("./static")  // Serve static files from ./static directory
-            .setStaticFilesCacheTime(0);  // Disable cache during development
+            .setDocumentRoot("./static")
+            .setStaticFilesCacheTime(3600);
+
+        // SPA fallback: return index.html for non-API 404s (Angular routing)
+        std::string index_path = "./static/index.html";
+        std::string spa_fallback;
+        {
+            std::ifstream ifs(index_path);
+            if (ifs.good()) {
+                spa_fallback = std::string(std::istreambuf_iterator<char>(ifs), {});
+            }
+        }
+        if (!spa_fallback.empty()) {
+            app().setCustomErrorHandler(
+                [spa_fallback](HttpStatusCode code, const HttpRequestPtr& req) -> HttpResponsePtr {
+                    if (code == k404NotFound) {
+                        const auto& path = req->path();
+                        if (path.find("/api/") == std::string::npos &&
+                            path != "/health" && path != "/status") {
+                            auto resp = HttpResponse::newHttpResponse();
+                            resp->setStatusCode(k200OK);
+                            resp->setContentTypeCode(CT_TEXT_HTML);
+                            resp->setBody(spa_fallback);
+                            return resp;
+                        }
+                    }
+                    return nullptr;
+                });
+        }
 
         // Register health check endpoint
         app().registerHandler(
@@ -195,16 +235,42 @@ int main() {
             {Get}
         );
 
-        // Register status endpoint
+        // Register status endpoint (matches frontend dashboard expectations)
         app().registerHandler(
             "/status",
-            [](const HttpRequestPtr& req,
+            [mqtt_client, db_host, db_port, db_name, mqtt_broker_address](const HttpRequestPtr& req,
                std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value response;
                 response["service"] = "HMS FireTV";
                 response["version"] = "1.0.0";
                 response["status"] = "running";
-                response["uptime_seconds"] = time(nullptr);  // Simplified for now
+                response["uptime_seconds"] = time(nullptr);
+
+                bool db_connected = DatabaseService::getInstance().isConnected();
+                bool mqtt_connected = mqtt_client && mqtt_client->isConnected();
+
+                response["connections"]["database"] = db_connected ? "connected" : "disconnected";
+                response["connections"]["mqtt"] = mqtt_connected ? "connected" : "disconnected";
+
+                response["config"]["db_host"] = db_host + ":" + std::to_string(db_port);
+                response["config"]["db_name"] = db_name;
+                response["config"]["mqtt_broker"] = mqtt_broker_address;
+
+                try {
+                    auto devices = DeviceRepository::getInstance().getAllDevices();
+                    response["devices"]["total"] = static_cast<int>(devices.size());
+                    int paired = 0, online = 0;
+                    for (const auto& d : devices) {
+                        if (d.isPaired()) paired++;
+                        if (d.isOnline()) online++;
+                    }
+                    response["devices"]["paired"] = paired;
+                    response["devices"]["online"] = online;
+                } catch (...) {
+                    response["devices"]["total"] = 0;
+                    response["devices"]["paired"] = 0;
+                    response["devices"]["online"] = 0;
+                }
 
                 auto resp = HttpResponse::newHttpJsonResponse(response);
                 resp->setStatusCode(k200OK);
@@ -230,7 +296,10 @@ int main() {
         // Run the application (blocks until quit signal)
         app().run();
 
-        // Graceful shutdown: drain background logger queue
+        // Graceful shutdown
+        std::cout << "Shutting down discovery service...\n";
+        discovery_service->stop();
+
         std::cout << "Shutting down background logger...\n";
         CommandController::shutdownBackgroundLogger();
 
