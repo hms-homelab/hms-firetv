@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     libjsoncpp-dev \
+    libyaml-cpp-dev \
     libdrogon-dev \
     libpqxx-dev \
     libpaho-mqtt-dev \
