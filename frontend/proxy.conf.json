@@ -1,0 +1,14 @@
+{
+  "/api": {
+    "target": "http://localhost:8888",
+    "secure": false
+  },
+  "/health": {
+    "target": "http://localhost:8888",
+    "secure": false
+  },
+  "/status": {
+    "target": "http://localhost:8888",
+    "secure": false
+  }
+}

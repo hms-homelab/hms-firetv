@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.3] - 2026-04-17
+
+### Added
+- Angular 21 web UI replacing vanilla JS frontend (dashboard, remote, devices, apps, settings)
+- DiscoveryService: automatic Fire TV IP detection via port 8009 probing + token-based matching
+- Favorite apps quick-launch on Remote Control page
+- SPA fallback in Drogon for Angular routing
+- Enriched `/status` endpoint with DB/MQTT connection state and device counts
+- `build_and_deploy.sh` script with env variable support
+- GitHub Actions release workflow for binary artifacts
+
+### Changed
+- Dockerfile upgraded to 3-stage build (Angular + C++ + runtime)
+- Static file cache enabled (1 hour TTL)
+
 ## [1.0.2] - 2026-03-05
 
 ### Fixed
