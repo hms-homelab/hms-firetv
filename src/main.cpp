@@ -192,17 +192,13 @@ int main() {
         }
         if (!spa_fallback.empty()) {
             app().setCustomErrorHandler(
-                [spa_fallback](HttpStatusCode code, const HttpRequestPtr& req) -> HttpResponsePtr {
+                [spa_fallback](HttpStatusCode code) -> HttpResponsePtr {
                     if (code == k404NotFound) {
-                        const auto& path = req->path();
-                        if (path.find("/api/") == std::string::npos &&
-                            path != "/health" && path != "/status") {
-                            auto resp = HttpResponse::newHttpResponse();
-                            resp->setStatusCode(k200OK);
-                            resp->setContentTypeCode(CT_TEXT_HTML);
-                            resp->setBody(spa_fallback);
-                            return resp;
-                        }
+                        auto resp = HttpResponse::newHttpResponse();
+                        resp->setStatusCode(k200OK);
+                        resp->setContentTypeCode(CT_TEXT_HTML);
+                        resp->setBody(spa_fallback);
+                        return resp;
                     }
                     return nullptr;
                 });
