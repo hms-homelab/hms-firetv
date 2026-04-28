@@ -19,9 +19,9 @@ export class ApiService {
   resetPairing(id: string) { return this.http.post<any>(`/api/devices/${id}/pair/reset`, {}); }
   getDeviceStatus(id: string) { return this.http.get<any>(`/api/devices/${id}/status`); }
 
-  sendNavigation(id: string, action: string) { return this.http.post<any>(`/api/devices/${id}/navigation`, { action }); }
+  sendNavigation(id: string, action: string) { return this.http.post<any>(`/api/devices/${id}/navigate`, { action }); }
   sendMedia(id: string, action: string) { return this.http.post<any>(`/api/devices/${id}/media`, { action }); }
-  sendKeyboard(id: string, text: string) { return this.http.post<any>(`/api/devices/${id}/keyboard`, { text }); }
+  sendKeyboard(id: string, text: string) { return this.http.post<any>(`/api/devices/${id}/text`, { text }); }
   launchApp(id: string, pkg: string) { return this.http.post<any>(`/api/devices/${id}/app`, { package: pkg }); }
 
   getApps(id: string) { return this.http.get<any>(`/api/devices/${id}/apps`); }

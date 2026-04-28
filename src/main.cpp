@@ -31,7 +31,7 @@ int main() {
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "================================================================================\n";
-    std::cout << "Starting HMS FireTV v1.0.0\n";
+    std::cout << "Starting HMS FireTV v1.0.4\n";
     std::cout << "================================================================================\n";
 
     try {
@@ -192,8 +192,15 @@ int main() {
         }
         if (!spa_fallback.empty()) {
             app().setCustomErrorHandler(
-                [spa_fallback](HttpStatusCode code) -> HttpResponsePtr {
+                [spa_fallback](HttpStatusCode code, const HttpRequestPtr& req) -> HttpResponsePtr {
                     if (code == k404NotFound) {
+                        const auto& path = req->path();
+                        if (path.find("/api/") == 0 || path == "/health" || path == "/status") {
+                            Json::Value err;
+                            err["success"] = false;
+                            err["error"] = "Not found: " + path;
+                            return HttpResponse::newHttpJsonResponse(err);
+                        }
                         auto resp = HttpResponse::newHttpResponse();
                         resp->setStatusCode(k200OK);
                         resp->setContentTypeCode(CT_TEXT_HTML);
@@ -211,7 +218,7 @@ int main() {
                std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value response;
                 response["service"] = "HMS FireTV";
-                response["version"] = "1.0.0";
+                response["version"] = "1.0.4";
 
                 // Check service health
                 bool db_connected = DatabaseService::getInstance().isConnected();
@@ -238,7 +245,7 @@ int main() {
                std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value response;
                 response["service"] = "HMS FireTV";
-                response["version"] = "1.0.0";
+                response["version"] = "1.0.4";
                 response["status"] = "running";
                 response["uptime_seconds"] = time(nullptr);
 
