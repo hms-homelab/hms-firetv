@@ -28,10 +28,20 @@ jobs:
             build-essential cmake pkg-config \
             libssl-dev libjsoncpp-dev libyaml-cpp-dev \
             libpaho-mqtt-dev libpaho-mqttpp-dev \
-            libcurl4-openssl-dev libdrogon-dev \
+            libcurl4-openssl-dev \
             libpqxx-dev libpq-dev \
             uuid-dev libhiredis-dev libbrotli-dev zlib1g-dev \
-            libmariadb-dev libsqlite3-dev
+            libmariadb-dev libsqlite3-dev libc-ares-dev
+
+      - name: Build Drogon from source
+        run: |
+          git clone --depth 1 --branch v1.9.10 https://github.com/drogonframework/drogon.git /tmp/drogon
+          cd /tmp/drogon
+          git submodule update --init
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF ..
+          make -j$(nproc)
+          sudo make install
 
       - name: Setup Node
         uses: actions/setup-node@v4
