@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.4] - 2026-04-28
+
+### Fixed
+- **Web UI controls broken**: Frontend called `/api/devices/{id}/navigation` and `/keyboard` but backend routes were `/navigate` and `/text` — commands silently returned SPA HTML instead of JSON
+- **SPA fallback masking API 404s**: Drogon custom error handler now returns JSON 404 for `/api/*`, `/health`, `/status` paths instead of serving `index.html`
+
 ## [1.0.3] - 2026-04-17
 
 ### Added
