@@ -53,15 +53,15 @@ foreach(test_src ${TEST_SOURCES})
         ${GTEST_BOTH_LIBRARIES}
         Threads::Threads
         Drogon::Drogon
-        jsoncpp_lib
+        ${JSONCPP_LIB}
         eclipse-paho-mqtt-c::paho-mqtt3as
-        /usr/local/lib/libpaho-mqttpp3.so
+        ${PAHO_MQTTPP3_LIB}
         ${PQXX_LIB}
         ${PQ_LIB}
         ${CURL_LIBRARIES}
         pthread
-        ssl
-        crypto
+        OpenSSL::SSL
+        OpenSSL::Crypto
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})
