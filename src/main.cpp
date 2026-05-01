@@ -247,7 +247,7 @@ int main() {
                 response["service"] = "HMS FireTV";
                 response["version"] = "1.0.4";
                 response["status"] = "running";
-                response["uptime_seconds"] = time(nullptr);
+                response["uptime_seconds"] = static_cast<Json::Int64>(time(nullptr));
 
                 bool db_connected = DatabaseService::getInstance().isConnected();
                 bool mqtt_connected = mqtt_client && mqtt_client->isConnected();

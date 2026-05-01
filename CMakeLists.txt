@@ -10,9 +10,14 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 # Find required packages
 find_package(Drogon CONFIG REQUIRED)
 find_package(jsoncpp REQUIRED)
+find_library(JSONCPP_LIB jsoncpp)
+if(NOT JSONCPP_LIB)
+    message(FATAL_ERROR "libjsoncpp not found. Install with: brew install jsoncpp")
+endif()
 find_package(eclipse-paho-mqtt-c REQUIRED)  # Find C library first
 find_package(PahoMqttCpp REQUIRED)
 find_package(CURL REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 # Find paho C++ wrapper (prefer /usr/local for source builds, falls back to system)
 find_library(PAHO_MQTTPP3_LIB paho-mqttpp3 PATHS /usr/local/lib NO_DEFAULT_PATH)
@@ -43,15 +48,15 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
     Drogon::Drogon
-    jsoncpp_lib
+    ${JSONCPP_LIB}
     eclipse-paho-mqtt-c::paho-mqtt3as  # C library with SSL (async)
     ${PAHO_MQTTPP3_LIB}  # C++ wrapper (found via find_library)
     ${PQXX_LIB}
     ${PQ_LIB}
     ${CURL_LIBRARIES}
     pthread
-    ssl
-    crypto
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 # Install target
