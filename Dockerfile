@@ -50,7 +50,8 @@ COPY src/ ./src/
 COPY include/ ./include/
 
 RUN mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF .. && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF \
+          -DCMAKE_PREFIX_PATH=/usr/local .. && \
     make -j$(nproc) && \
     strip hms_firetv
 
