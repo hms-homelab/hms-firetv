@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.5] - 2026-05-03
+
+### Added
+- **Discovery UI**: Devices page now has a scan button that discovers Fire TVs on the network and lets you add them directly from results
+
+### Fixed
+- **Pairing flow**: fixed bug in pairing process that prevented successful device pairing
+- **Service template**: sanitized `hms-firetv.service` — hardcoded credentials replaced with `CHANGE_ME` placeholders, username replaced with `%i` specifier, path corrected to `projects/hms-firetv/build/`
+
 ## [1.0.4] - 2026-04-28
 
 ### Fixed
