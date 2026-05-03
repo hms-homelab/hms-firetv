@@ -58,36 +58,30 @@ bool LightningClient::wakeDevice() {
     return success;
 }
 
-std::string LightningClient::displayPin(const std::string& friendly_name) {
+bool LightningClient::displayPin(const std::string& friendly_name) {
     std::cout << "[LightningClient] Displaying PIN on " << ip_address_ << std::endl;
 
-    // Build JSON payload
     Json::Value payload;
     payload["friendlyName"] = friendly_name;
 
     Json::StreamWriterBuilder writer;
     std::string json_body = Json::writeString(writer, payload);
 
-    // Send request
     std::string url = base_url_ + "/v1/FireTV/pin/display";
     auto result = executePost(url, json_body, COMMAND_TIMEOUT, false);
 
-    if (result.success && result.status_code == 200) {
-        // Extract PIN from response
-        if (result.response_body.isMember("description")) {
-            std::string pin = result.response_body["description"].asString();
-            std::cout << "[LightningClient] PIN displayed: " << pin
-                      << " (" << result.response_time_ms << "ms)" << std::endl;
-            return pin;
-        } else {
-            std::cerr << "[LightningClient] PIN response missing 'description' field" << std::endl;
-        }
-    } else {
-        std::cerr << "[LightningClient] Failed to display PIN: "
-                  << result.status_code << std::endl;
+    if (result.success) {
+        std::cout << "[LightningClient] PIN display triggered on " << ip_address_
+                  << " HTTP " << result.status_code
+                  << " (" << result.response_time_ms << "ms)" << std::endl;
+        return true;
     }
 
-    return "";
+    std::cerr << "[LightningClient] Failed to display PIN on " << ip_address_
+              << " — HTTP " << result.status_code
+              << (result.error.has_value() ? " (" + result.error.value() + ")" : "")
+              << std::endl;
+    return false;
 }
 
 std::string LightningClient::verifyPin(const std::string& pin) {
@@ -105,26 +99,25 @@ std::string LightningClient::verifyPin(const std::string& pin) {
     std::string url = base_url_ + "/v1/FireTV/pin/verify";
     auto result = executePost(url, json_body, COMMAND_TIMEOUT, false);
 
-    if (result.success && result.status_code == 200) {
-        // Extract token from response
+    if (result.success) {
         if (result.response_body.isMember("description")) {
             std::string token = result.response_body["description"].asString();
-
-            // Validate token (must not be "OK" or empty)
             if (!token.empty() && token != "OK") {
-                client_token_ = token;  // Store token for future requests
+                client_token_ = token;
                 std::cout << "[LightningClient] PIN verified, token: " << token
                           << " (" << result.response_time_ms << "ms)" << std::endl;
                 return token;
-            } else {
-                std::cerr << "[LightningClient] Invalid token received: " << token << std::endl;
             }
+            // "OK" means TV accepted the PIN but token isn't ready yet
+            std::cout << "[LightningClient] PIN accepted, token pending..." << std::endl;
         } else {
             std::cerr << "[LightningClient] PIN verify response missing 'description' field" << std::endl;
         }
     } else {
-        std::cerr << "[LightningClient] Failed to verify PIN: "
-                  << result.status_code << std::endl;
+        std::cerr << "[LightningClient] Failed to verify PIN on " << ip_address_
+                  << " — HTTP " << result.status_code
+                  << (result.error.has_value() ? " (" + result.error.value() + ")" : "")
+                  << std::endl;
     }
 
     return "";

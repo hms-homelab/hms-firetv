@@ -12,12 +12,16 @@ namespace hms_firetv {
 
 struct DiscoveredDevice {
     std::string ip_address;
+    std::string hostname;
     bool has_wake_port;
     bool has_lightning;
 };
 
 class DiscoveryService {
 public:
+    static void initialize(const std::string& subnet_prefix, int scan_interval_seconds = 300);
+    static DiscoveryService& getInstance();
+
     DiscoveryService(const std::string& subnet_prefix,
                      int scan_interval_seconds = 300);
     ~DiscoveryService();
@@ -31,6 +35,8 @@ public:
     void setMqttClient(std::shared_ptr<MQTTClient> mqtt_client);
 
     void runOnce();
+
+    std::vector<DiscoveredDevice> getUnregisteredDevices();
 
 private:
     void scanLoop();

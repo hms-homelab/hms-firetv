@@ -83,9 +83,9 @@ public:
      * on the Fire TV to complete pairing.
      *
      * @param friendly_name Name shown on TV screen (default: "HMS FireTV")
-     * @return PIN code if successful, empty string if failed
+     * @return true if TV acknowledged the PIN display request
      */
-    std::string displayPin(const std::string& friendly_name = "HMS FireTV");
+    bool displayPin(const std::string& friendly_name = "HMS FireTV");
 
     /**
      * Verify PIN entered on Fire TV

@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <thread>
 
 namespace hms_firetv {
 
@@ -37,23 +38,14 @@ void PairingController::startPairing(const HttpRequestPtr& req,
             return;
         }
 
-        // Generate PIN
-        std::string pin = generatePin();
-
-        // Display PIN on TV (this also wakes the device)
-        // displayPin() returns the PIN that was displayed (or empty string on failure)
-        std::string displayed_pin = client->displayPin();
-
-        if (displayed_pin.empty()) {
+        // Trigger PIN display on TV — the TV generates and shows its own PIN
+        if (!client->displayPin()) {
             sendError(std::move(callback), k500InternalServerError,
                      "Failed to display PIN on TV. Check device connectivity.");
             return;
         }
 
-        // Use the PIN returned by the device
-        pin = displayed_pin;
-
-        // Calculate expiration time (5 minutes from now)
+        // Store pairing session expiry (5 minutes) — no pin_code stored, TV owns the PIN
         auto now = std::chrono::system_clock::now();
         auto expires = now + std::chrono::minutes(5);
         auto expires_time_t = std::chrono::system_clock::to_time_t(expires);
@@ -61,12 +53,11 @@ void PairingController::startPairing(const HttpRequestPtr& req,
         oss << std::put_time(std::gmtime(&expires_time_t), "%Y-%m-%d %H:%M:%S");
         std::string expires_at = oss.str();
 
-        // Store PIN in database
         std::string query = "UPDATE fire_tv_devices "
-                          "SET pin_code = $1, pin_expires_at = $2, status = 'pairing' "
-                          "WHERE device_id = $3";
+                          "SET pin_code = NULL, pin_expires_at = $1, status = 'pairing' "
+                          "WHERE device_id = $2";
 
-        DatabaseService::getInstance().executeQueryParams(query, {pin, expires_at, device_id});
+        DatabaseService::getInstance().executeQueryParams(query, {expires_at, device_id});
 
         // Return response
         Json::Value response;
@@ -118,17 +109,14 @@ void PairingController::verifyPairing(const HttpRequestPtr& req,
             return;
         }
 
-        // Check if PIN exists
-        if (!device->pin_code.has_value() || device->pin_code.value().empty()) {
+        // Check if pairing session is in progress
+        if (device->status != "pairing") {
             sendError(std::move(callback), k400BadRequest,
                      "No pairing in progress. Start pairing first.");
             return;
         }
 
-        // Get PIN value
-        std::string device_pin = device->pin_code.value();
-
-        // Check if PIN has expired
+        // Check if pairing session has expired
         std::string expires_at_str = "";
         if (device->pin_expires_at.has_value()) {
             auto expires_time_t = std::chrono::system_clock::to_time_t(device->pin_expires_at.value());
@@ -138,19 +126,12 @@ void PairingController::verifyPairing(const HttpRequestPtr& req,
         }
 
         if (isPinExpired(expires_at_str)) {
-            // Clear expired PIN
             std::string clear_query = "UPDATE fire_tv_devices "
-                                     "SET pin_code = NULL, pin_expires_at = NULL, status = 'offline' "
+                                     "SET pin_expires_at = NULL, status = 'offline' "
                                      "WHERE device_id = $1";
             DatabaseService::getInstance().executeQueryParams(clear_query, {device_id});
 
-            sendError(std::move(callback), k410Gone, "PIN has expired. Start pairing again.");
-            return;
-        }
-
-        // Verify PIN
-        if (device_pin != entered_pin) {
-            sendError(std::move(callback), k401Unauthorized, "Invalid PIN");
+            sendError(std::move(callback), k410Gone, "Pairing session expired. Start pairing again.");
             return;
         }
 
@@ -161,8 +142,12 @@ void PairingController::verifyPairing(const HttpRequestPtr& req,
             return;
         }
 
-        // Complete pairing with Fire TV
-        std::string client_token = client->verifyPin(entered_pin);
+        // Complete pairing with Fire TV — retry up to 3 times in case TV returns "OK" first
+        std::string client_token;
+        for (int attempt = 0; attempt < 3 && client_token.empty(); ++attempt) {
+            if (attempt > 0) std::this_thread::sleep_for(std::chrono::seconds(1));
+            client_token = client->verifyPin(entered_pin);
+        }
 
         if (client_token.empty()) {
             sendError(std::move(callback), k500InternalServerError,
@@ -317,11 +302,10 @@ std::string PairingController::generatePin() {
 
 bool PairingController::isPinExpired(const std::string& expires_at) {
     if (expires_at.empty()) {
-        return true;
+        return false;  // no expiry set — session still valid
     }
 
     try {
-        // Parse expiration time
         std::tm tm = {};
         std::istringstream ss(expires_at);
         ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
@@ -330,7 +314,8 @@ bool PairingController::isPinExpired(const std::string& expires_at) {
             return true;
         }
 
-        auto expires_time = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+        // timegm interprets tm as UTC, matching how we stored it with gmtime
+        auto expires_time = std::chrono::system_clock::from_time_t(timegm(&tm));
         auto now = std::chrono::system_clock::now();
 
         return now >= expires_time;
