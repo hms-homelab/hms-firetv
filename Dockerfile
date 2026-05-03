@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Build Drogon v1.9.10 from source — apt package lacks two-arg setCustomErrorHandler
 RUN git clone --depth 1 --branch v1.9.10 https://github.com/drogonframework/drogon /tmp/drogon && \
+    git -C /tmp/drogon submodule update --init && \
     cmake -S /tmp/drogon -B /tmp/drogon/build \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_TESTING=OFF \
