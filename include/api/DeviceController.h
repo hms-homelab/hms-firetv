@@ -1,8 +1,8 @@
 #pragma once
 
 #include <drogon/HttpController.h>
-#include "repositories/DeviceRepository.h"
 #include "models/Device.h"
+#include "services/DiscoveryService.h"
 
 using namespace drogon;
 
@@ -39,6 +39,9 @@ public:
 
     // Get device status
     ADD_METHOD_TO(DeviceController::getDeviceStatus, "/api/devices/{1}/status", Get);
+
+   //Discover device
+    ADD_METHOD_TO(DeviceController::discoverDevices, "/api/devices/discover", Get);
 
     METHOD_LIST_END
 
@@ -90,11 +93,21 @@ public:
                         std::function<void(const HttpResponsePtr&)>&& callback,
                         std::string device_id);
 
+    /**
+     *
+     * Get new devices discovered on the  network
+     * GET /api/devices/discover
+     */
+    void discoverDevices(const HttpRequestPtr& req,
+                         std::function<void(const HttpResponsePtr&)>&& callback);
+
 private:
     /**
      * Convert Device model to JSON
      */
     Json::Value deviceToJson(const Device& device);
+
+    Json::Value unregisteredDeviceToJson(const DiscoveredDevice& device);
 
     /**
      * Send error response

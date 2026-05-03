@@ -1,7 +1,10 @@
 #include "api/DeviceController.h"
 #include "api/CommandController.h"
 #include "repositories/DeviceRepository.h"
+#include "services/DiscoveryService.h"
 #include <iostream>
+
+#include "services/DiscoveryService.h"
 
 namespace hms_firetv {
 
@@ -34,6 +37,36 @@ void DeviceController::listDevices(const HttpRequestPtr& req,
         sendError(std::move(callback), k500InternalServerError, "Failed to list devices");
     }
 }
+
+    // ============================================================================
+    // GET DISCOVERY
+    // ============================================================================
+
+    void DeviceController::discoverDevices(const HttpRequestPtr& req,
+        std::function<void(const HttpResponsePtr&)>&& callback) {
+        try {
+            auto devices = DiscoveryService::getInstance().getUnregisteredDevices();
+
+            Json::Value response;
+            response["success"] = true;
+            response["count"] = static_cast<unsigned int>(devices.size());
+            response["devices"] = Json::arrayValue;
+
+            for (const auto& device : devices) {
+                response["devices"].append(unregisteredDeviceToJson(device));
+            }
+
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            resp->setStatusCode(k200OK);
+            callback(resp);
+
+            std::cout << "[DeviceController] Discovered " << devices.size() << " devices" << std::endl;
+
+        } catch (const std::exception& e) {
+            std::cerr << "[DeviceController] Error discovering devices: " << e.what() << std::endl;
+            sendError(std::move(callback), k500InternalServerError, "Failed to discover devices");
+        }
+    }
 
 // ============================================================================
 // GET DEVICE BY ID
@@ -325,6 +358,15 @@ Json::Value DeviceController::deviceToJson(const Device& device) {
         json["last_seen_at"] = last_seen_buffer;
     }
 
+    return json;
+}
+
+Json::Value DeviceController::unregisteredDeviceToJson(const DiscoveredDevice& device) {
+    Json::Value json;
+    json["ip_address"] = device.ip_address;
+    json["hostname"] = device.hostname;
+    json["has_lightning"] = device.has_lightning;
+    json["has_wake_port"] = device.has_wake_port;
     return json;
 }
 

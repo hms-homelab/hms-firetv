@@ -4,6 +4,7 @@
 
 # Sensitive configuration files
 .env
+CLAUDE.md
 *.secret
 *.key
 *.pem

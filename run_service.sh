@@ -24,4 +24,4 @@ echo "MQTT: tcp://$MQTT_BROKER_HOST:$MQTT_BROKER_PORT"
 echo "API: $API_HOST:$API_PORT"
 echo ""
 
-./build/hms_firetv
+./cmake-build-debug/hms_firetv

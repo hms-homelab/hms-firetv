@@ -43,17 +43,17 @@ int main() {
         std::string log_level = ConfigManager::getEnv("LOG_LEVEL", "info");
 
         // Database configuration
-        std::string db_host = ConfigManager::getEnv("DB_HOST", "localhost");
+        std::string db_host = ConfigManager::getEnv("DB_HOST", "192.168.2.15");
         int db_port = ConfigManager::getEnvInt("DB_PORT", 5432);
         std::string db_name = ConfigManager::getEnv("DB_NAME", "firetv");
         std::string db_user = ConfigManager::getEnv("DB_USER", "firetv_user");
-        std::string db_password = ConfigManager::getEnv("DB_PASSWORD", "");
+        std::string db_password = ConfigManager::getEnv("DB_PASSWORD", "firetv_postgres_2026_secure");
 
         // MQTT configuration
-        std::string mqtt_broker = ConfigManager::getEnv("MQTT_BROKER_HOST", "localhost");
+        std::string mqtt_broker = ConfigManager::getEnv("MQTT_BROKER_HOST", "192.168.2.15");
         int mqtt_port = ConfigManager::getEnvInt("MQTT_BROKER_PORT", 1883);
-        std::string mqtt_user = ConfigManager::getEnv("MQTT_USER", "");
-        std::string mqtt_password = ConfigManager::getEnv("MQTT_PASS", "");
+        std::string mqtt_user = ConfigManager::getEnv("MQTT_USER", "aamat");
+        std::string mqtt_password = ConfigManager::getEnv("MQTT_PASS", "exploracion");
         std::string mqtt_broker_address = "tcp://" + mqtt_broker + ":" + std::to_string(mqtt_port);
 
         std::cout << "Configuration loaded:\n";
@@ -159,12 +159,11 @@ int main() {
         // Initialize device discovery service
         std::string discovery_subnet = ConfigManager::getEnv("DISCOVERY_SUBNET", "192.168.2");
         int discovery_interval = ConfigManager::getEnvInt("DISCOVERY_INTERVAL", 300);
-        auto discovery_service = std::make_shared<DiscoveryService>(
-            discovery_subnet, discovery_interval);
+        DiscoveryService::initialize(discovery_subnet, discovery_interval);
         if (mqtt_client) {
-            discovery_service->setMqttClient(mqtt_client);
+            DiscoveryService::getInstance().setMqttClient(mqtt_client);
         }
-        discovery_service->start();
+        DiscoveryService::getInstance().start();
         std::cout << "  ✓ DiscoveryService started (every " << discovery_interval << "s)\n";
 
         std::cout << "Services initialized\n";
@@ -301,7 +300,7 @@ int main() {
 
         // Graceful shutdown
         std::cout << "Shutting down discovery service...\n";
-        discovery_service->stop();
+        DiscoveryService::getInstance().stop();
 
         std::cout << "Shutting down background logger...\n";
         CommandController::shutdownBackgroundLogger();

@@ -1,0 +1,163 @@
+<div class="card">
+  <div class="header">
+    <h1>Devices</h1>
+    <div>
+      <button class="btn btn-primary" (click)="listNewDevices()" style="margin-right: 10px;">Discover</button>
+      <button class="btn btn-primary" (click)="openAdd()">Add Device</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+    <tr>
+      <th>Status</th>
+      <th>Device</th>
+      <th>IP Address</th>
+      <th>Paired</th>
+      <th>ADB</th>
+      <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+      @for (d of devices(); track d.device_id) {
+        <tr>
+          <td>
+                <span
+                  class="dot"
+                  [class.dot-online]="d.status === 'online'"
+                  [class.dot-offline]="d.status === 'offline'"
+                  [class.dot-pairing]="d.status === 'pairing'"
+                ></span>
+          </td>
+          <td>
+            <a class="device-link" (click)="openEdit(d)">{{ d.name }}</a>
+            <div class="device-id">{{ d.device_id }}</div>
+          </td>
+          <td class="muted">{{ d.ip_address }}</td>
+          <td>
+                <span
+                  class="badge"
+                  [class.badge-success]="d.is_paired"
+                  [class.badge-gray]="!d.is_paired"
+                >
+                  {{ d.is_paired ? 'Yes' : 'No' }}
+                </span>
+          </td>
+          <td class="muted">{{ d.adb_enabled ? 'On' : 'Off' }}</td>
+          <td>
+            <div class="actions">
+              @if (!d.is_paired) {
+                <button class="btn btn-primary btn-sm" (click)="startPair(d)">Pair</button>
+              } @else {
+                <button class="btn btn-secondary btn-sm" (click)="unpair(d)">Unpair</button>
+              }
+              <button class="btn btn-danger btn-sm" (click)="remove(d)">Delete</button>
+            </div>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6" class="empty">No devices. Click "Add Device" to get started.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+
+@if (showForm()) {
+  <div class="modal-overlay" (click)="onOverlay($event)">
+    <div class="modal">
+      <h2>{{ editDevice() ? 'Edit Device' : 'Add Device' }}</h2>
+      <div class="form-group">
+        <label>Device ID</label>
+        <input
+          type="text"
+          [(ngModel)]="form.device_id"
+          placeholder="living_room"
+          [disabled]="!!editDevice()"
+        />
+      </div>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" [(ngModel)]="form.name" placeholder="Living Room Fire TV" />
+      </div>
+      <div class="form-group">
+        <label>IP Address</label>
+        <input type="text" [(ngModel)]="form.ip_address" placeholder="192.168.2.xxx" />
+      </div>
+      @if (error()) {
+        <div class="error-msg">{{ error() }}</div>
+      }
+      <div class="btn-row">
+        <button class="btn btn-secondary" (click)="closeForm()">Cancel</button>
+        <button class="btn btn-primary" (click)="save()" [disabled]="saving()">
+          {{ saving() ? 'Saving...' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showPairModal()) {
+  <div class="modal-overlay" (click)="onOverlay($event)">
+    <div class="modal">
+      <h2>Pair: {{ pairDevice()?.name }}</h2>
+      @if (pairStep() === 'waiting') {
+        <p class="muted">A PIN should appear on your TV screen.</p>
+        <div class="form-group" style="margin-top: 16px;">
+          <label>Enter PIN</label>
+          <input type="text" [(ngModel)]="pairPin" placeholder="Enter PIN from TV" />
+        </div>
+        @if (error()) {
+          <div class="error-msg">{{ error() }}</div>
+        }
+        <div class="btn-row">
+          <button class="btn btn-secondary" (click)="closePair()">Cancel</button>
+          <button
+            class="btn btn-primary"
+            (click)="verifyPin()"
+            [disabled]="!pairPin || saving()"
+          >
+            Verify
+          </button>
+        </div>
+      } @else {
+        <div class="success-msg">Device paired successfully!</div>
+        <div class="btn-row" style="margin-top: 16px;">
+          <button class="btn btn-primary" (click)="closePair()">Done</button>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if(newDevice()){
+  <div class="modal-overlay" (click)="onOverlay($event)">
+    <div class="modal">
+      @if (discovering && !newDevices().length) {
+        <p class="muted">Searching for new devices...</p>
+
+      } @else {
+        <h2>News Devices Found</h2>
+      }
+
+
+      <ul>
+        @for (d of newDevices(); track d.ip_address) {
+            <li><strong>Hostname:</strong> {{ d.hostname || 'Unknown' }}</li>
+            <li><strong>IP Address:</strong> {{ d.ip_address }}</li>
+            <li style="display: flex; gap: 8px; margin-top: 16px;">
+              <button class="btn btn-secondary" (click)="dismissNewDevice()">Dismiss</button>
+              <button class="btn btn-primary" (click)="openAddFromDiscovery(d)">Add Device</button>
+            </li>
+          }
+
+        <li>
+          <br>
+        </li>
+      </ul>
+
+      <button class="btn btn-primary" (click)="closeDiscovery()">Close</button>
+    </div>
+  </div>
+}

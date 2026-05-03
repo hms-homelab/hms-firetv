@@ -1,0 +1,40 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+}
+.device-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+.device-link:hover {
+  text-decoration: underline;
+}
+.device-id {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.muted {
+  color: var(--text-muted);
+}
+.actions {
+  display: flex;
+  gap: 4px;
+}
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 0 !important;
+}
+.btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
