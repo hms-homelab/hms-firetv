@@ -102,26 +102,17 @@ namespace hms_firetv {
             unregistered.end()
         );
 
-        for (auto &device : unregistered) {
-           struct sockaddr_in sa{};
-            sa.sin_family = AF_INET;
-            inet_pton(AF_INET, device.ip_address.c_str(), &sa.sin_addr);
-            char host[256];
-            if (getnameinfo((struct sockaddr*)&sa, sizeof(sa),
-                     host, sizeof(host), nullptr, 0, NI_NAMEREQD) == 0) {
-                device.hostname = host;
-                     }
-
-        }
-
         for (auto& d : unregistered) {
             struct sockaddr_in sa{};
             sa.sin_family = AF_INET;
             inet_pton(AF_INET, d.ip_address.c_str(), &sa.sin_addr);
             char host[256] = "";
             if (getnameinfo((struct sockaddr*)&sa, sizeof(sa),
-                            host, sizeof(host), nullptr, 0, NI_NAMEREQD) == 0) {
-                d.hostname = host;
+                            host, sizeof(host), nullptr, 0, NI_NOFQDN) == 0) {
+                std::string resolved(host);
+                if (resolved != d.ip_address) {
+                    d.hostname = resolved;
+                }
             }
         }
 
