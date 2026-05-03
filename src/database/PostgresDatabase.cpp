@@ -152,6 +152,14 @@ bool PostgresDatabase::verifyPinAndSetToken(const std::string& device_id,
     return true;
 }
 
+bool PostgresDatabase::completePairing(const std::string& device_id,
+                                       const std::string& client_token) {
+    return DatabaseService::getInstance().executeQueryParams(
+        "UPDATE fire_tv_devices SET client_token=$1,pin_code=NULL,pin_expires_at=NULL,"
+        "status='online',updated_at=NOW() WHERE device_id=$2", {client_token, device_id}).empty()
+        ? DatabaseService::getInstance().isConnected() : true;
+}
+
 bool PostgresDatabase::clearPairing(const std::string& device_id) {
     return DatabaseService::getInstance().executeQueryParams(
         "UPDATE fire_tv_devices SET client_token=NULL,pin_code=NULL,pin_expires_at=NULL,"

@@ -1,5 +1,4 @@
 #include "api/PairingController.h"
-#include "services/DatabaseService.h"
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -8,6 +7,12 @@
 #include <thread>
 
 namespace hms_firetv {
+
+std::shared_ptr<IDatabase> PairingController::db_;
+
+void PairingController::setDatabase(std::shared_ptr<IDatabase> db) {
+    db_ = std::move(db);
+}
 
 // ============================================================================
 // START PAIRING
@@ -53,11 +58,10 @@ void PairingController::startPairing(const HttpRequestPtr& req,
         oss << std::put_time(std::gmtime(&expires_time_t), "%Y-%m-%d %H:%M:%S");
         std::string expires_at = oss.str();
 
-        std::string query = "UPDATE fire_tv_devices "
-                          "SET pin_code = NULL, pin_expires_at = $1, status = 'pairing' "
-                          "WHERE device_id = $2";
-
-        DatabaseService::getInstance().executeQueryParams(query, {expires_at, device_id});
+        if (!db_ || !db_->setPairingPin(device_id, "", 300)) {
+            sendError(std::move(callback), k500InternalServerError, "Failed to store pairing session");
+            return;
+        }
 
         // Return response
         Json::Value response;
@@ -126,11 +130,7 @@ void PairingController::verifyPairing(const HttpRequestPtr& req,
         }
 
         if (isPinExpired(expires_at_str)) {
-            std::string clear_query = "UPDATE fire_tv_devices "
-                                     "SET pin_expires_at = NULL, status = 'offline' "
-                                     "WHERE device_id = $1";
-            DatabaseService::getInstance().executeQueryParams(clear_query, {device_id});
-
+            if (db_) db_->clearPairing(device_id);
             sendError(std::move(callback), k410Gone, "Pairing session expired. Start pairing again.");
             return;
         }
@@ -156,12 +156,10 @@ void PairingController::verifyPairing(const HttpRequestPtr& req,
         }
 
         // Store client token and clear PIN
-        std::string update_query = "UPDATE fire_tv_devices "
-                                  "SET client_token = $1, pin_code = NULL, pin_expires_at = NULL, "
-                                  "status = 'online' "
-                                  "WHERE device_id = $2";
-
-        DatabaseService::getInstance().executeQueryParams(update_query, {client_token, device_id});
+        if (!db_ || !db_->completePairing(device_id, client_token)) {
+            sendError(std::move(callback), k500InternalServerError, "Failed to store pairing token");
+            return;
+        }
 
         // Update client with token
         client->setClientToken(client_token);
@@ -200,13 +198,10 @@ void PairingController::resetPairing(const HttpRequestPtr& req,
             return;
         }
 
-        // Clear pairing data
-        std::string query = "UPDATE fire_tv_devices "
-                          "SET client_token = NULL, pin_code = NULL, pin_expires_at = NULL, "
-                          "status = 'offline' "
-                          "WHERE device_id = $1";
-
-        DatabaseService::getInstance().executeQueryParams(query, {device_id});
+        if (!db_ || !db_->clearPairing(device_id)) {
+            sendError(std::move(callback), k500InternalServerError, "Failed to reset pairing");
+            return;
+        }
 
         // Clear cached client
         {
