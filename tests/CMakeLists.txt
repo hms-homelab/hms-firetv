@@ -1,18 +1,32 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Find GoogleTest and GMock
 find_package(GTest REQUIRED)
 find_package(GMock QUIET)
 find_package(Threads REQUIRED)
 
-# Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
     ${GTEST_INCLUDE_DIRS}
 )
 
-# Test source files (full integration tests with dependencies)
+# SQLite3 always needed
+find_library(SQLITE3_LIB sqlite3 REQUIRED)
+
+# PostgreSQL optional (inherited from parent)
+set(PG_LIBS "")
+if(BUILD_WITH_POSTGRESQL)
+    set(PG_LIBS ${PQXX_LIB} ${PQ_LIB})
+endif()
+
+set(DB_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/database/SQLiteDatabase.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/AppConfig.cpp
+)
+if(BUILD_WITH_POSTGRESQL)
+    list(APPEND DB_SOURCES ${CMAKE_SOURCE_DIR}/src/database/PostgresDatabase.cpp)
+endif()
+
 set(TEST_SOURCES
     test_device_controller.cpp
     test_command_controller.cpp
@@ -24,17 +38,16 @@ set(TEST_SOURCES
     test_apps_repository.cpp
 )
 
-# Unit tests that don't need full dependencies
 set(UNIT_TEST_SOURCES
     test_background_logger.cpp
 )
 
-# Create test executable for each test file
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
 
     add_executable(${test_name}
         ${test_src}
+        ${DB_SOURCES}
         ${CMAKE_SOURCE_DIR}/src/api/DeviceController.cpp
         ${CMAKE_SOURCE_DIR}/src/api/CommandController.cpp
         ${CMAKE_SOURCE_DIR}/src/api/PairingController.cpp
@@ -47,6 +60,7 @@ foreach(test_src ${TEST_SOURCES})
         ${CMAKE_SOURCE_DIR}/src/mqtt/CommandHandler.cpp
         ${CMAKE_SOURCE_DIR}/src/mqtt/MQTTClient.cpp
         ${CMAKE_SOURCE_DIR}/src/mqtt/DiscoveryPublisher.cpp
+        ${CMAKE_SOURCE_DIR}/src/services/DiscoveryService.cpp
     )
 
     target_link_libraries(${test_name}
@@ -56,8 +70,8 @@ foreach(test_src ${TEST_SOURCES})
         ${JSONCPP_LIB}
         eclipse-paho-mqtt-c::paho-mqtt3as
         ${PAHO_MQTTPP3_LIB}
-        ${PQXX_LIB}
-        ${PQ_LIB}
+        ${SQLITE3_LIB}
+        ${PG_LIBS}
         ${CURL_LIBRARIES}
         pthread
         OpenSSL::SSL
@@ -67,13 +81,10 @@ foreach(test_src ${TEST_SOURCES})
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
 
-# Create test executables for unit tests (minimal dependencies)
 foreach(test_src ${UNIT_TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
 
-    add_executable(${test_name}
-        ${test_src}
-    )
+    add_executable(${test_name} ${test_src})
 
     target_link_libraries(${test_name}
         ${GTEST_BOTH_LIBRARIES}
@@ -83,5 +94,4 @@ foreach(test_src ${UNIT_TEST_SOURCES})
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
 
-# Enable testing
 enable_testing()

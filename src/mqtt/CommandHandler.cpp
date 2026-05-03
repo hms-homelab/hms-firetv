@@ -1,4 +1,5 @@
 #include "mqtt/CommandHandler.h"
+#include <algorithm>
 #include <iostream>
 #include <thread>
 #include <chrono>

@@ -1,4 +1,5 @@
 #include "services/DiscoveryService.h"
+#include "services/DatabaseService.h"
 #include <iostream>
 #include <sstream>
 #include <chrono>
