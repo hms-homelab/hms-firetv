@@ -5,7 +5,7 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-%23FFDD00.svg?logo=buy-me-a-coffee)](https://www.buymeacoffee.com/aamat09)
 [![Build](https://github.com/hms-homelab/hms-firetv/actions/workflows/docker-build.yml/badge.svg)](https://github.com/hms-homelab/hms-firetv/actions)
 
-C++ Fire TV control service with Angular web UI and Home Assistant MQTT integration. 2.2 MB memory.
+Multi-device Fire TV control service with event-driven Home Assistant MQTT Discovery integration and Angular web UI. Register as many Fire TVs as you want — each one appears automatically as a set of button entities in HA. 2.2 MB memory.
 
 ## Screenshots
 
@@ -17,13 +17,14 @@ C++ Fire TV control service with Angular web UI and Home Assistant MQTT integrat
 
 ## Features
 
+- Multi-device — register unlimited Fire TVs, all managed from one service
+- Event-driven HA integration — each device auto-publishes 15 button entities via MQTT Discovery, no manual HA config needed
 - Fire TV Lightning protocol (HTTPS port 8080, DIAL port 8009)
-- 15 Home Assistant button entities per device via MQTT Discovery
 - Angular web UI (dashboard, remote control, device/app management)
 - Automatic IP discovery when Fire TVs change DHCP addresses
 - Device pairing with PIN verification
 - SQLite by default, PostgreSQL optional
-- MQTT optional — service starts and runs without a broker
+- MQTT optional — service starts immediately, connects to broker in the background
 - 2.2 MB memory footprint
 
 ## Quick Start
