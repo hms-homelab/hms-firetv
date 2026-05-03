@@ -31,6 +31,7 @@ public:
                        int expires_secs) override;
     bool verifyPinAndSetToken(const std::string& device_id, const std::string& pin_code,
                               const std::string& client_token) override;
+    bool completePairing(const std::string& device_id, const std::string& client_token) override;
     bool clearPairing(const std::string& device_id) override;
 
     std::vector<DeviceApp> getAppsForDevice(const std::string& device_id) override;

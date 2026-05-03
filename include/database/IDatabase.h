@@ -33,6 +33,7 @@ public:
                                int expires_secs) = 0;
     virtual bool verifyPinAndSetToken(const std::string& device_id, const std::string& pin_code,
                                       const std::string& client_token) = 0;
+    virtual bool completePairing(const std::string& device_id, const std::string& client_token) = 0;
     virtual bool clearPairing(const std::string& device_id) = 0;
 
     // ── Apps ─────────────────────────────────────────────────────────────────

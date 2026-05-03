@@ -8,6 +8,12 @@
 
 namespace hms_firetv {
 
+static std::string trim(std::string s) {
+    auto l = s.find_first_not_of(" \t\r\n");
+    auto r = s.find_last_not_of(" \t\r\n");
+    return (l == std::string::npos) ? "" : s.substr(l, r - l + 1);
+}
+
 // ============================================================================
 // LIST ALL DEVICES
 // ============================================================================
@@ -123,10 +129,10 @@ void DeviceController::createDevice(const HttpRequestPtr& req,
 
         // Create device object
         Device device;
-        device.device_id = (*json)["device_id"].asString();
-        device.name = (*json)["name"].asString();
-        device.ip_address = (*json)["ip_address"].asString();
-        device.api_key = (*json).get("api_key", "0987654321").asString();
+        device.device_id = trim((*json)["device_id"].asString());
+        device.name = trim((*json)["name"].asString());
+        device.ip_address = trim((*json)["ip_address"].asString());
+        device.api_key = trim((*json).get("api_key", "0987654321").asString());
         device.status = "offline";
         device.adb_enabled = (*json).get("adb_enabled", false).asBool();
 

@@ -3,6 +3,8 @@
 #include <drogon/HttpController.h>
 #include "clients/LightningClient.h"
 #include "repositories/DeviceRepository.h"
+#include "database/IDatabase.h"
+#include <memory>
 
 using namespace drogon;
 
@@ -95,6 +97,8 @@ public:
                          std::function<void(const HttpResponsePtr&)>&& callback,
                          std::string device_id);
 
+    static void setDatabase(std::shared_ptr<IDatabase> db);
+
 private:
     /**
      * Generate random 6-digit PIN
@@ -121,6 +125,8 @@ private:
     // Cache of Lightning clients per device
     std::map<std::string, std::shared_ptr<LightningClient>> clients_;
     std::mutex clients_mutex_;
+
+    static std::shared_ptr<IDatabase> db_;
 };
 
 } // namespace hms_firetv

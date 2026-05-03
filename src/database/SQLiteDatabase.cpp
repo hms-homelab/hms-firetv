@@ -355,6 +355,19 @@ bool SQLiteDatabase::verifyPinAndSetToken(const std::string& device_id,
     return sqlite3_step(g.s) == SQLITE_DONE;
 }
 
+bool SQLiteDatabase::completePairing(const std::string& device_id,
+                                     const std::string& client_token) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const char* sql =
+        "UPDATE fire_tv_devices SET client_token=?,pin_code=NULL,pin_expires_at=NULL,"
+        "status='online',updated_at=CURRENT_TIMESTAMP WHERE device_id=?";
+    StmtGuard g;
+    if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(g.s, 1, client_token.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(g.s, 2, device_id.c_str(), -1, SQLITE_TRANSIENT);
+    return sqlite3_step(g.s) == SQLITE_DONE;
+}
+
 bool SQLiteDatabase::clearPairing(const std::string& device_id) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const char* sql =

@@ -3,6 +3,9 @@
 #include <fstream>
 #include <csignal>
 #include <filesystem>
+#include <thread>
+#include <atomic>
+#include <chrono>
 #include "utils/ConfigManager.h"
 #include "utils/AppConfig.h"
 #include "database/IDatabase.h"
@@ -35,7 +38,7 @@ int main() {
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "================================================================================\n";
-    std::cout << "Starting HMS FireTV v1.0.5\n";
+    std::cout << "Starting HMS FireTV v1.0.6\n";
     std::cout << "================================================================================\n";
 
     try {
@@ -98,63 +101,71 @@ int main() {
         DeviceRepository::setDatabase(db);
         AppsRepository::setDatabase(db);
         StatsController::setDatabase(db);
+        PairingController::setDatabase(db);
 
         // Initialize background logger
         CommandController::initBackgroundLogger();
         std::cout << "  ✓ Background logger initialized\n";
 
-        // MQTT
-        std::shared_ptr<MQTTClient> mqtt_client;
-        std::shared_ptr<DiscoveryPublisher> discovery_publisher;
-        std::shared_ptr<CommandHandler> command_handler;
+        // MQTT — connect in background so startup is never blocked by broker availability
+        auto mqtt_client = std::make_shared<MQTTClient>("hms_firetv");
+        std::atomic<bool> mqtt_stop{false};
 
-        try {
-            mqtt_client = std::make_shared<MQTTClient>("hms_firetv");
-            if (mqtt_client->connect(mqtt_addr, mqtt_user, mqtt_pass)) {
-                std::cout << "  ✓ MQTT client connected\n";
-                discovery_publisher = std::make_shared<DiscoveryPublisher>(*mqtt_client);
-                command_handler = std::make_shared<CommandHandler>();
-
+        auto mqtt_thread = std::thread([mqtt_client, mqtt_addr, mqtt_user, mqtt_pass, &mqtt_stop]() {
+            while (!mqtt_stop.load()) {
                 try {
-                    auto devices = DeviceRepository::getInstance().getAllDevices();
-                    int published = 0;
-                    for (const auto& device : devices)
-                        if (discovery_publisher->publishDevice(device)) published++;
-                    std::cout << "  ✓ Published discovery for " << published << "/" << devices.size() << " devices\n";
-                } catch (const std::exception& e) {
-                    std::cerr << "  ⚠ Discovery publish failed: " << e.what() << "\n";
-                }
+                    if (mqtt_client->connect(mqtt_addr, mqtt_user, mqtt_pass)) {
+                        std::cout << "  ✓ MQTT client connected\n";
+                        auto discovery_publisher = std::make_shared<DiscoveryPublisher>(*mqtt_client);
+                        auto command_handler = std::make_shared<CommandHandler>();
 
-                mqtt_client->registerTopicCallback("homeassistant/status",
-                    [discovery_publisher](const std::string&, const std::string& payload) {
-                        if (payload == "online") {
-                            try {
-                                auto devices = DeviceRepository::getInstance().getAllDevices();
-                                int published = 0;
-                                for (const auto& d : devices)
-                                    if (discovery_publisher->publishDevice(d)) published++;
-                                std::cout << "[HA_STATUS] Republished " << published << "/" << devices.size() << " devices\n";
-                            } catch (...) {}
+                        try {
+                            auto devices = DeviceRepository::getInstance().getAllDevices();
+                            int published = 0;
+                            for (const auto& device : devices)
+                                if (discovery_publisher->publishDevice(device)) published++;
+                            std::cout << "  ✓ Published discovery for " << published << "/" << devices.size() << " devices\n";
+                        } catch (const std::exception& e) {
+                            std::cerr << "  ⚠ Discovery publish failed: " << e.what() << "\n";
                         }
-                    });
 
-                mqtt_client->subscribeToAllCommands(
-                    [command_handler](const std::string& device_id, const Json::Value& payload) {
-                        command_handler->handleCommand(device_id, payload);
-                    });
-                std::cout << "  ✓ Subscribed to all command topics\n";
-            } else {
-                std::cerr << "  ✗ MQTT connection failed — MQTT features unavailable\n";
+                        mqtt_client->registerTopicCallback("homeassistant/status",
+                            [discovery_publisher](const std::string&, const std::string& payload) {
+                                if (payload == "online") {
+                                    try {
+                                        auto devices = DeviceRepository::getInstance().getAllDevices();
+                                        int published = 0;
+                                        for (const auto& d : devices)
+                                            if (discovery_publisher->publishDevice(d)) published++;
+                                        std::cout << "[HA_STATUS] Republished " << published << "/" << devices.size() << " devices\n";
+                                    } catch (...) {}
+                                }
+                            });
+
+                        mqtt_client->subscribeToAllCommands(
+                            [command_handler](const std::string& device_id, const Json::Value& payload) {
+                                command_handler->handleCommand(device_id, payload);
+                            });
+                        std::cout << "  ✓ Subscribed to all command topics\n";
+
+                        // Paho handles reconnect from here — thread's job is done
+                        return;
+                    }
+                } catch (const std::exception& e) {
+                    std::cerr << "  ✗ MQTT connect error: " << e.what() << "\n";
+                }
+                std::cerr << "  ✗ MQTT unavailable — retrying in 10s\n";
+                for (int i = 0; i < 10 && !mqtt_stop.load(); i++)
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
             }
-        } catch (const std::exception& e) {
-            std::cerr << "  ✗ MQTT init failed: " << e.what() << "\n";
-        }
+        });
+        mqtt_thread.detach();
 
         // Device discovery
         std::string discovery_subnet = ConfigManager::getEnv("DISCOVERY_SUBNET", "192.168.2");
         int discovery_interval = ConfigManager::getEnvInt("DISCOVERY_INTERVAL", 300);
         DiscoveryService::initialize(discovery_subnet, discovery_interval);
-        if (mqtt_client) DiscoveryService::getInstance().setMqttClient(mqtt_client);
+        DiscoveryService::getInstance().setMqttClient(mqtt_client);
         DiscoveryService::getInstance().start();
         std::cout << "  ✓ DiscoveryService started (every " << discovery_interval << "s)\n";
 
@@ -204,7 +215,7 @@ int main() {
                 std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value r;
                 r["service"] = "HMS FireTV";
-                r["version"] = "1.0.5";
+                r["version"] = "1.0.6";
                 r["db_type"] = config.database.type;
                 bool db_ok   = db && db->isConnected();
                 bool mqtt_ok = mqtt_client && mqtt_client->isConnected();
@@ -222,7 +233,7 @@ int main() {
                 std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value r;
                 r["service"] = "HMS FireTV";
-                r["version"] = "1.0.5";
+                r["version"] = "1.0.6";
                 r["status"]  = "running";
                 bool db_ok   = db && db->isConnected();
                 bool mqtt_ok = mqtt_client && mqtt_client->isConnected();
@@ -254,6 +265,7 @@ int main() {
 
         app().run();
 
+        mqtt_stop.store(true);
         DiscoveryService::getInstance().stop();
         CommandController::shutdownBackgroundLogger();
 
