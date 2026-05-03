@@ -21,11 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     ca-certificates \
+    git \
     pkg-config \
     libssl-dev \
     libjsoncpp-dev \
     libyaml-cpp-dev \
-    libdrogon-dev \
     libpqxx-dev \
     libpaho-mqtt-dev \
     libpaho-mqttpp-dev \
@@ -33,6 +33,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     uuid-dev libhiredis-dev libbrotli-dev zlib1g-dev \
     libmariadb-dev libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Build Drogon v1.9.10 from source — apt package lacks two-arg setCustomErrorHandler
+RUN git clone --depth 1 --branch v1.9.10 https://github.com/drogonframework/drogon /tmp/drogon && \
+    cmake -S /tmp/drogon -B /tmp/drogon/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=OFF \
+        -DBUILD_EXAMPLES=OFF && \
+    cmake --build /tmp/drogon/build -j$(nproc) && \
+    cmake --install /tmp/drogon/build && \
+    rm -rf /tmp/drogon
 
 WORKDIR /build
 COPY CMakeLists.txt VERSION ./
