@@ -94,4 +94,18 @@ foreach(test_src ${UNIT_TEST_SOURCES})
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
 
+# ConnectionPool is header-only and needs nothing but gtest + libpqxx.
+if(BUILD_WITH_POSTGRESQL)
+    add_executable(test_connection_pool test_connection_pool.cpp)
+
+    target_link_libraries(test_connection_pool
+        ${GTEST_BOTH_LIBRARIES}
+        Threads::Threads
+        ${PG_LIBS}
+        pthread
+    )
+
+    add_test(NAME test_connection_pool COMMAND test_connection_pool)
+endif()
+
 enable_testing()

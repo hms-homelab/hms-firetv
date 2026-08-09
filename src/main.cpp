@@ -38,7 +38,7 @@ int main() {
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "================================================================================\n";
-    std::cout << "Starting HMS FireTV v1.0.6\n";
+    std::cout << "Starting HMS FireTV v1.0.7\n";
     std::cout << "================================================================================\n";
 
     try {
@@ -215,7 +215,7 @@ int main() {
                 std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value r;
                 r["service"] = "HMS FireTV";
-                r["version"] = "1.0.6";
+                r["version"] = "1.0.7";
                 r["db_type"] = config.database.type;
                 bool db_ok   = db && db->isConnected();
                 bool mqtt_ok = mqtt_client && mqtt_client->isConnected();
@@ -233,7 +233,7 @@ int main() {
                 std::function<void(const HttpResponsePtr&)>&& callback) {
                 Json::Value r;
                 r["service"] = "HMS FireTV";
-                r["version"] = "1.0.6";
+                r["version"] = "1.0.7";
                 r["status"]  = "running";
                 bool db_ok   = db && db->isConnected();
                 bool mqtt_ok = mqtt_client && mqtt_client->isConnected();
