@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.7] - 2026-08-09
+
+### Fixed
+- **Connection pool leaked a slot on every failed reconnect**: when `acquire()` popped a dead connection and could not replace it, it threw without returning the slot to the pool. A database outage therefore drained the pool permanently — once all 8 slots were lost the queue stayed empty forever and every subsequent query blocked for the full 5s timeout and reported `Connection pool timeout: no connection available within 5000ms`, **even after PostgreSQL came back**. The service reported `status: degraded` / `database: disconnected` from 2026-08-06 23:42 until manually restarted (4602 failed queries). The pool now tracks how many connections it owns, frees the slot on every failure path, and refills on demand — so it recovers by itself once the database returns, and a pool built while the database is down is no longer permanently dead.
+- **Connectivity errors were reported as pool timeouts**: an unreachable database produced a misleading `Connection pool timeout` after a 5s wait instead of the actual connection error. Real errors now surface immediately.
+
+### Added
+- `tests/test_connection_pool.cpp` — regression coverage for the leak (fails against the old pool), plus RAII return, capacity stability across 50 acquire/release cycles, and on-demand refill. Live-database cases skip cleanly when no PostgreSQL is reachable; override the DSN with `TEST_PG_DSN`.
+- `ConnectionPool::liveCount()` for pool diagnostics.
+
 ## [1.0.5] - 2026-05-03
 
 ### Added

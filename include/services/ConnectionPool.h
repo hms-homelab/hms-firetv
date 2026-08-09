@@ -91,9 +91,15 @@ public:
             }
         }
 
+        live_count_ = available_connections_.size();
+
         std::cout << "[ConnectionPool] Initialized with "
                   << available_connections_.size() << "/" << pool_size_
                   << " connections" << std::endl;
+        if (live_count_ < pool_size_) {
+            std::cout << "[ConnectionPool] " << (pool_size_ - live_count_)
+                      << " slot(s) will be filled on demand" << std::endl;
+        }
     }
 
     /**
@@ -111,11 +117,62 @@ public:
     PooledConnection acquire() {
         std::unique_lock<std::mutex> lock(mutex_);
 
-        // Wait for available connection with timeout
         auto deadline = std::chrono::steady_clock::now() +
                        std::chrono::milliseconds(max_wait_ms_);
 
-        while (available_connections_.empty() && !shutdown_) {
+        for (;;) {
+            if (shutdown_) {
+                throw std::runtime_error("Connection pool is shutting down");
+            }
+
+            // 1. Hand out a live connection if one is queued.
+            if (!available_connections_.empty()) {
+                auto conn = std::move(available_connections_.front());
+                available_connections_.pop();
+
+                if (conn && conn->is_open()) {
+                    return PooledConnection(std::move(conn), this);
+                }
+
+                // Dead connection: drop it and free its slot so it can be
+                // recreated below. Never leave the slot unaccounted for.
+                std::cerr << "[ConnectionPool] Discarding dead connection, slot freed"
+                          << std::endl;
+                --live_count_;
+                continue;
+            }
+
+            // 2. Nothing queued but we're under capacity — build a fresh one.
+            //    This is what lets the pool heal after the database has been
+            //    down: slots freed above (or never created at startup) get
+            //    refilled on demand instead of being lost forever.
+            if (live_count_ < pool_size_) {
+                ++live_count_;   // reserve the slot before releasing the lock
+                lock.unlock();
+
+                std::unique_ptr<pqxx::connection> conn;
+                try {
+                    conn = std::make_unique<pqxx::connection>(connection_string_);
+                } catch (const std::exception& e) {
+                    lock.lock();
+                    --live_count_;   // release the reservation, allow a later retry
+                    lock.unlock();
+                    std::cerr << "[ConnectionPool] Failed to create connection: "
+                              << e.what() << std::endl;
+                    throw;
+                }
+
+                if (!conn || !conn->is_open()) {
+                    lock.lock();
+                    --live_count_;
+                    lock.unlock();
+                    throw std::runtime_error("[ConnectionPool] New connection is not open");
+                }
+
+                return PooledConnection(std::move(conn), this);
+            }
+
+            // 3. At capacity and all connections are checked out — wait.
             if (cv_.wait_until(lock, deadline) == std::cv_status::timeout) {
                 throw std::runtime_error(
                     "Connection pool timeout: no connection available within " +
@@ -123,29 +180,6 @@ public:
                 );
             }
         }
-
-        if (shutdown_) {
-            throw std::runtime_error("Connection pool is shutting down");
-        }
-
-        // Get connection from pool
-        auto conn = std::move(available_connections_.front());
-        available_connections_.pop();
-
-        // Verify connection is still valid
-        if (!conn || !conn->is_open()) {
-            std::cerr << "[ConnectionPool] Connection invalid, attempting to recreate..."
-                      << std::endl;
-            try {
-                conn = std::make_unique<pqxx::connection>(connection_string_);
-            } catch (const std::exception& e) {
-                std::cerr << "[ConnectionPool] Failed to recreate connection: "
-                          << e.what() << std::endl;
-                throw;
-            }
-        }
-
-        return PooledConnection(std::move(conn), this);
     }
 
     /**
@@ -162,7 +196,13 @@ public:
 
     size_t inUseCount() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return pool_size_ - available_connections_.size();
+        return live_count_ - available_connections_.size();
+    }
+
+    /** Connections currently owned by the pool (queued + checked out). */
+    size_t liveCount() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return live_count_;
     }
 
     /**
@@ -180,6 +220,8 @@ public:
 
         std::cout << "[ConnectionPool] Shutting down, closing "
                   << available_connections_.size() << " connections..." << std::endl;
+
+        live_count_ = 0;
 
         while (!available_connections_.empty()) {
             auto conn = std::move(available_connections_.front());
@@ -221,6 +263,7 @@ private:
     size_t pool_size_;
     int max_wait_ms_;
     bool shutdown_;
+    size_t live_count_{0};   // connections owned: queued + checked out
 
     mutable std::mutex mutex_;
     std::condition_variable cv_;
