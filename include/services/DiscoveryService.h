@@ -41,6 +41,8 @@ public:
 private:
     void scanLoop();
     std::vector<DiscoveredDevice> scanSubnet();
+    // Wakes a sleeping Fire TV so the token probe on 8080 can reach it.
+    static bool wakeDevice(const std::string& ip);
     bool probeWakeEndpoint(const std::string& ip);
     bool probeLightningWithToken(const std::string& ip,
                                  const std::string& api_key,
