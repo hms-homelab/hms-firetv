@@ -1,3 +1,4 @@
+#include <thread>
 #include "services/DiscoveryService.h"
 #include "services/DatabaseService.h"
 #include <iostream>
@@ -173,12 +174,16 @@ namespace hms_firetv {
                    if (!running_.load()) return std::nullopt;
                    if (!tcpProbe(ip, 8009)) return std::nullopt;
                    if (!probeWakeEndpoint(ip)) return std::nullopt;
-                   bool lightning_open = tcpProbe(ip, 8080);
-                   return DiscoveredDevice{ip, "", true, lightning_open};
+                   /* has_lightning USED TO BE tcpProbe(ip, 8080), and that made
+                    * self-healing impossible: a SLEEPING Fire TV does not listen
+                    * on 8080, which is exactly when a moved device needs to be
+                    * rediscovered. matchAndUpdate() gates on this flag, so every
+                    * candidate was skipped and an IP change was never applied.
+                    * Reaching this line already proves it is a Fire TV: 8009 is
+                    * open AND the wake endpoint answered, both of which work
+                    * while asleep. */
+                   return DiscoveredDevice{ip, "", true, true};
                 }));
-
-            if (!tcpProbe(ip, 8009)) continue;
-
         }
         for (auto& f: futures) {
             auto r = f.get();
@@ -192,6 +197,34 @@ namespace hms_firetv {
         size_t total = size * nmemb;
         static_cast<std::string *>(userp)->append(static_cast<char *>(contents), total);
         return total;
+    }
+
+    /* Same call LightningClient::wakeDevice makes: an empty POST to the
+     * wake endpoint on 8009. Discovery needs its own copy because it has to
+     * wake a candidate BEFORE it can identify it on 8080. */
+    bool DiscoveryService::wakeDevice(const std::string &ip) {
+        CURL *curl = curl_easy_init();
+        if (!curl) return false;
+
+        std::string url = "http://" + ip + ":8009/apps/FireTVRemote";
+        std::string response;
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+        CURLcode res = curl_easy_perform(curl);
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        curl_easy_cleanup(curl);
+
+        return res == CURLE_OK &&
+               (http_code == 200 || http_code == 201 || http_code == 204);
     }
 
     bool DiscoveryService::probeWakeEndpoint(const std::string &ip) {
@@ -291,8 +324,35 @@ namespace hms_firetv {
                 }
                 if (ip_taken) continue;
 
-                if (probeLightningWithToken(d.ip_address, device.api_key,
-                                            device.client_token.value())) {
+                /* Wake first. The token probe lives on 8080 and a sleeping
+                 * Fire TV does not listen there, so without this the identity
+                 * check fails on precisely the devices we are trying to find.
+                 * The token check itself is KEPT: with several Fire TVs on the
+                 * subnet it is the only thing stopping one device's identity
+                 * being handed to another.
+                 *
+                 * RETRY, do not assume one sleep is enough: a Fire TV coming out
+                 * of standby takes seconds to bring 8080 up, and a single 1.5s
+                 * wait silently lost the device for another 5 minutes. */
+                std::cout << "[DiscoveryService] '" << device.device_id
+                        << "' not at " << device.ip_address
+                        << ", testing candidate " << d.ip_address << "\n";
+
+                wakeDevice(d.ip_address);
+
+                bool identified = false;
+                for (int attempt = 1; attempt <= 3 && !identified; ++attempt) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                    identified = probeLightningWithToken(d.ip_address,
+                                                         device.api_key,
+                                                         device.client_token.value());
+                    if (!identified)
+                        std::cout << "[DiscoveryService]   attempt " << attempt
+                                << "/3: " << d.ip_address
+                                << " did not answer for this token\n";
+                }
+
+                if (identified) {
                     std::cout << "[DiscoveryService] Device '" << device.device_id
                             << "' moved: " << device.ip_address
                             << " -> " << d.ip_address << "\n";
