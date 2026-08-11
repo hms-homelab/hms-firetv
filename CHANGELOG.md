@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.1] - 2026-08-11
+
+### Fixed
+- Live microphone sent nothing after the first few presses. The capture graph
+  kept only the ScriptProcessor in a variable; the source and gain nodes were
+  locals, and once they were collected the audio callback stopped firing while
+  the socket stayed open and healthy, so a session opened and closed with zero
+  bytes. Capture now uses an AudioWorklet and every node is retained.
+- Audio spoken before the session was ready was dropped. Opening a session
+  wakes the device and can take twelve seconds; the button now buffers from the
+  moment it is pressed and flushes on ready, and releasing early still sends
+  what was captured.
+- The page reports how much audio it has sent, so a silent path is visible
+  rather than having to be inferred from the service log.
+
+### Added
+- `__voiceSelfTest()` on the voice page, which pushes a tone through the same
+  send path the microphone uses - the relay can be proven from a machine with
+  no microphone.
+
 ## [1.1.0] - 2026-08-11
 
 ### Added
