@@ -48,6 +48,10 @@ void CommandController::sendCommand(const HttpRequestPtr& req,
             launchApp(req, std::move(callback), device_id);
         } else if (command == "send_text") {
             sendText(req, std::move(callback), device_id);
+        } else if (command == "hold") {
+            hold(req, std::move(callback), device_id);
+        } else if (command == "key_down" || command == "key_up") {
+            key(req, std::move(callback), device_id);
         } else {
             sendError(std::move(callback), k400BadRequest, "Unknown command: " + command);
         }
@@ -125,6 +129,155 @@ void CommandController::navigate(const HttpRequestPtr& req,
     } catch (const std::exception& e) {
         std::cerr << "[CommandController] Error in navigate: " << e.what() << std::endl;
         sendError(std::move(callback), k500InternalServerError, "Navigation failed");
+    }
+}
+
+// ============================================================================
+// PRESS AND HOLD
+// ============================================================================
+
+namespace {
+
+/** "up" -> "dpad_up"; anything already prefixed or named is left alone. */
+std::string toLightningAction(const std::string& action) {
+    if (action == "up" || action == "down" || action == "left" || action == "right")
+        return "dpad_" + action;
+    return action;
+}
+
+}  // namespace
+
+void CommandController::hold(const HttpRequestPtr& req,
+                             std::function<void(const HttpResponsePtr&)>&& callback,
+                             std::string device_id) {
+    try {
+        auto json = req->getJsonObject();
+        if (!json) {
+            sendError(std::move(callback), k400BadRequest, "Invalid JSON body");
+            return;
+        }
+
+        std::string action;
+        if (json->isMember("action")) {
+            action = (*json)["action"].asString();
+        } else if (json->isMember("direction")) {
+            action = (*json)["direction"].asString();
+        } else {
+            sendError(std::move(callback), k400BadRequest, "Missing 'action' or 'direction' field");
+            return;
+        }
+        action = toLightningAction(action);
+
+        int ms = json->get("ms", 500).asInt();
+        // Bounded so a bad payload cannot pin a key down on the device.
+        ms = std::max(50, std::min(ms, 10000));
+
+        auto client = getClient(device_id);
+        if (!client) {
+            sendError(std::move(callback), k404NotFound, "Device not found: " + device_id);
+            return;
+        }
+
+        // The hold spends most of its time asleep between the two edges, so
+        // it runs on its own thread rather than occupying a Drogon worker.
+        std::thread([client, device_id, action, ms, callback = std::move(callback)]() mutable {
+            auto started = std::chrono::steady_clock::now();
+
+            auto down = client->holdKey(action);
+            if (!down.success) {
+                Json::Value response;
+                response["success"] = false;
+                response["error"] = "keyDown failed";
+                response["status_code"] = down.status_code;
+                auto resp = HttpResponse::newHttpJsonResponse(response);
+                resp->setStatusCode(k502BadGateway);
+                callback(resp);
+                return;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+            auto up = client->releaseKey(action);
+
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::steady_clock::now() - started)
+                               .count();
+
+            Json::Value response;
+            response["success"] = up.success;
+            response["action"] = action;
+            response["held_ms"] = ms;
+            response["elapsed_ms"] = static_cast<Json::Int64>(elapsed);
+            if (!up.success) {
+                // A missed keyUp leaves the key repeating on the device, so
+                // say so plainly rather than reporting a generic failure.
+                response["error"] = "keyUp failed - key may still be held down";
+                response["status_code"] = up.status_code;
+            }
+
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            resp->setStatusCode(up.success ? k200OK : k502BadGateway);
+            callback(resp);
+
+            std::cout << "[CommandController] Held " << action << " for " << ms << "ms on "
+                      << device_id << std::endl;
+        }).detach();
+
+    } catch (const std::exception& e) {
+        std::cerr << "[CommandController] Error in hold: " << e.what() << std::endl;
+        sendError(std::move(callback), k500InternalServerError, "Hold failed");
+    }
+}
+
+void CommandController::key(const HttpRequestPtr& req,
+                            std::function<void(const HttpResponsePtr&)>&& callback,
+                            std::string device_id) {
+    try {
+        auto json = req->getJsonObject();
+        if (!json) {
+            sendError(std::move(callback), k400BadRequest, "Invalid JSON body");
+            return;
+        }
+
+        if (!json->isMember("action")) {
+            sendError(std::move(callback), k400BadRequest, "Missing 'action' field");
+            return;
+        }
+        std::string action = toLightningAction((*json)["action"].asString());
+
+        // Accept either {"edge":"down"} or {"command":"key_down"}.
+        std::string edge = json->get("edge", "").asString();
+        if (edge.empty()) {
+            std::string command = json->get("command", "").asString();
+            if (command == "key_down") edge = "down";
+            else if (command == "key_up") edge = "up";
+        }
+        if (edge != "down" && edge != "up") {
+            sendError(std::move(callback), k400BadRequest, "'edge' must be \"down\" or \"up\"");
+            return;
+        }
+
+        auto client = getClient(device_id);
+        if (!client) {
+            sendError(std::move(callback), k404NotFound, "Device not found: " + device_id);
+            return;
+        }
+
+        auto result = (edge == "down") ? client->holdKey(action) : client->releaseKey(action);
+
+        Json::Value response;
+        response["success"] = result.success;
+        response["action"] = action;
+        response["edge"] = edge;
+        response["response_time_ms"] = result.response_time_ms;
+        if (!result.success) response["status_code"] = result.status_code;
+
+        auto resp = HttpResponse::newHttpJsonResponse(response);
+        resp->setStatusCode(result.success ? k200OK : k502BadGateway);
+        callback(resp);
+
+    } catch (const std::exception& e) {
+        std::cerr << "[CommandController] Error in key: " << e.what() << std::endl;
+        sendError(std::move(callback), k500InternalServerError, "Key command failed");
     }
 }
 

@@ -1,4 +1,5 @@
 #include "api/AppsController.h"
+#include "services/AppSyncService.h"
 #include <iostream>
 
 namespace hms_firetv {
@@ -329,6 +330,35 @@ Json::Value AppsController::appToJson(const DeviceApp& app) {
     json["updated_at"] = app.updated_at;
 
     return json;
+}
+
+void AppsController::syncApps(const HttpRequestPtr&,
+                              std::function<void(const HttpResponsePtr&)>&& callback,
+                              std::string device_id) {
+    try {
+        auto result = AppSyncService::syncDevice(device_id);
+
+        if (!result.success) {
+            sendError(std::move(callback), k502BadGateway, result.error);
+            return;
+        }
+
+        Json::Value response;
+        response["success"] = true;
+        response["device_id"] = device_id;
+        response["found"] = result.found;
+        response["stored"] = result.stored;
+
+        Json::Value apps(Json::arrayValue);
+        for (const auto& app : result.apps) apps.append(appToJson(app));
+        response["apps"] = apps;
+
+        callback(HttpResponse::newHttpJsonResponse(response));
+
+    } catch (const std::exception& e) {
+        std::cerr << "[AppsController] Error in syncApps: " << e.what() << std::endl;
+        sendError(std::move(callback), k500InternalServerError, "App sync failed");
+    }
 }
 
 void AppsController::sendError(std::function<void(const HttpResponsePtr&)>&& callback,

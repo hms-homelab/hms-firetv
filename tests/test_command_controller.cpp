@@ -29,7 +29,6 @@ protected:
         device.ip_address = "192.168.1.201";
         device.api_key = "test_key";
         device.status = "online";
-        device.adb_enabled = false;
 
         DeviceRepository::getInstance().createDevice(device);
     }

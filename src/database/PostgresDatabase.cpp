@@ -44,7 +44,6 @@ Device PostgresDatabase::parseDevice(const pqxx::row& row) {
     d.ip_address = row["ip_address"].as<std::string>();
     d.api_key    = row["api_key"].as<std::string>();
     d.status     = row["status"].as<std::string>();
-    d.adb_enabled = row["adb_enabled"].as<bool>();
     if (!row["client_token"].is_null()) d.client_token = row["client_token"].as<std::string>();
     if (!row["pin_code"].is_null()) d.pin_code = row["pin_code"].as<std::string>();
     if (!row["created_at"].is_null()) d.created_at = pgTs(row["created_at"].as<std::string>());
@@ -70,24 +69,24 @@ DeviceApp PostgresDatabase::parseApp(const pqxx::row& row) {
 
 std::optional<Device> PostgresDatabase::createDevice(const Device& device) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "INSERT INTO fire_tv_devices (device_id,name,ip_address,api_key,status,adb_enabled,"
-        "created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW()) RETURNING id",
+        "INSERT INTO fire_tv_devices (device_id,name,ip_address,api_key,status,"
+        "created_at,updated_at) VALUES ($1,$2,$3,$4,$5,NOW(),NOW()) RETURNING id",
         {device.device_id, device.name, device.ip_address, device.api_key,
-         device.status, device.adb_enabled ? "true" : "false"});
+         device.status});
     if (r.empty()) return std::nullopt;
     return getDeviceById(device.device_id);
 }
 
 std::optional<Device> PostgresDatabase::getDeviceById(const std::string& device_id) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "SELECT * FROM fire_tv_devices WHERE device_id=$1", {device_id});
+        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices WHERE device_id=$1", {device_id});
     if (r.empty()) return std::nullopt;
     return parseDevice(r[0]);
 }
 
 std::vector<Device> PostgresDatabase::getAllDevices() {
     auto r = DatabaseService::getInstance().executeQuery(
-        "SELECT * FROM fire_tv_devices ORDER BY created_at DESC");
+        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices ORDER BY created_at DESC");
     std::vector<Device> out;
     for (const auto& row : r) out.push_back(parseDevice(row));
     return out;
@@ -95,7 +94,7 @@ std::vector<Device> PostgresDatabase::getAllDevices() {
 
 std::vector<Device> PostgresDatabase::getDevicesByStatus(const std::string& status) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "SELECT * FROM fire_tv_devices WHERE status=$1 ORDER BY created_at DESC", {status});
+        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices WHERE status=$1 ORDER BY created_at DESC", {status});
     std::vector<Device> out;
     for (const auto& row : r) out.push_back(parseDevice(row));
     return out;
@@ -103,10 +102,10 @@ std::vector<Device> PostgresDatabase::getDevicesByStatus(const std::string& stat
 
 bool PostgresDatabase::updateDevice(const Device& device) {
     return DatabaseService::getInstance().executeQueryParams(
-        "UPDATE fire_tv_devices SET name=$1,ip_address=$2,status=$3,adb_enabled=$4,"
-        "updated_at=NOW() WHERE device_id=$5",
+        "UPDATE fire_tv_devices SET name=$1,ip_address=$2,status=$3,"
+        "updated_at=NOW() WHERE device_id=$4",
         {device.name, device.ip_address, device.status,
-         device.adb_enabled ? "true" : "false", device.device_id}).empty()
+         device.device_id}).empty()
         ? DatabaseService::getInstance().isConnected() : true;
 }
 

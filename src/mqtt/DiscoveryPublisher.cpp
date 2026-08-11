@@ -1,4 +1,5 @@
 #include "mqtt/DiscoveryPublisher.h"
+#include "repositories/AppsRepository.h"
 #include <iostream>
 
 namespace hms_firetv {
@@ -19,18 +20,27 @@ DiscoveryPublisher::DiscoveryPublisher(MQTTClient& mqtt_client)
 bool DiscoveryPublisher::publishDevice(const Device& device) {
     std::cout << "[DiscoveryPublisher] Publishing button discovery for " << device.device_id << std::endl;
 
-    // Python service publishes 15 button entities per device
     std::vector<std::string> buttons = {
         // Navigation
         "up", "down", "left", "right", "select",
+        // Held navigation. A Home Assistant button is a single press, so
+        // scrolling a long list meant tapping Down twenty times. These send a
+        // keyDown/keyUp pair with a gap between them, which is how the
+        // official app produces key repeat.
+        "hold_up", "hold_down", "hold_left", "hold_right",
         // Media
-        "play", "pause",
+        "play", "pause", "fast_forward", "rewind",
         // System
         "home", "back", "menu",
         // Volume
         "volume_up", "volume_down", "mute",
         // Power
-        "sleep", "wake"
+        "sleep", "wake",
+        // Voice session, without audio - the audio modes are the text entity
+        // below and the REST relay.
+        "voice_start", "voice_stop",
+        // Re-read the installed app list off the device.
+        "apps_refresh"
     };
 
     size_t published = 0;
@@ -57,6 +67,17 @@ bool DiscoveryPublisher::publishDevice(const Device& device) {
     } else {
         std::cerr << "[DiscoveryPublisher] ⚠️  Failed to publish text entity" << std::endl;
     }
+
+    // Voice: type a phrase, the service speaks it to Alexa.
+    if (publishVoiceEntity(device)) {
+        std::cout << "[DiscoveryPublisher] ✅ Published voice entity for " << device.name << std::endl;
+    } else {
+        std::cerr << "[DiscoveryPublisher] ⚠️  Failed to publish voice entity" << std::endl;
+    }
+
+    // App picker, from the apps the device itself reported. Absent until a
+    // sync has run, which is not an error on a first-seen device.
+    publishAppSelect(device);
 
     // Publish initial availability
     publishAvailability(device.device_id, device.status == "online");
@@ -87,9 +108,21 @@ Json::Value DiscoveryPublisher::buildButtonConfig(const Device& device, const st
         {"left", {"Left", "mdi:arrow-left"}},
         {"right", {"Right", "mdi:arrow-right"}},
         {"select", {"Select", "mdi:checkbox-blank-circle"}},
+        // Held navigation
+        {"hold_up", {"Scroll Up", "mdi:chevron-double-up"}},
+        {"hold_down", {"Scroll Down", "mdi:chevron-double-down"}},
+        {"hold_left", {"Scroll Left", "mdi:chevron-double-left"}},
+        {"hold_right", {"Scroll Right", "mdi:chevron-double-right"}},
         // Media
         {"play", {"Play", "mdi:play"}},
         {"pause", {"Pause", "mdi:pause"}},
+        {"fast_forward", {"Fast Forward", "mdi:fast-forward"}},
+        {"rewind", {"Rewind", "mdi:rewind"}},
+        // Voice
+        {"voice_start", {"Voice Start", "mdi:microphone"}},
+        {"voice_stop", {"Voice Stop", "mdi:microphone-off"}},
+        // Apps
+        {"apps_refresh", {"Refresh Apps", "mdi:refresh"}},
         // System
         {"home", {"Home", "mdi:home"}},
         {"back", {"Back", "mdi:arrow-left-circle"}},
@@ -123,7 +156,16 @@ Json::Value DiscoveryPublisher::buildButtonConfig(const Device& device, const st
         {"volume_down", "volume_down"},
         {"mute", "mute"},
         {"sleep", "sleep"},
-        {"wake", "wake"}
+        {"wake", "wake"},
+        {"hold_up", "hold_up"},
+        {"hold_down", "hold_down"},
+        {"hold_left", "hold_left"},
+        {"hold_right", "hold_right"},
+        {"fast_forward", "fast_forward"},
+        {"rewind", "rewind"},
+        {"voice_start", "voice_start"},
+        {"voice_stop", "voice_stop"},
+        {"apps_refresh", "apps_refresh"}
     };
 
     std::string action = button_actions[button_id];
@@ -178,6 +220,56 @@ bool DiscoveryPublisher::publishTextEntity(const Device& device) {
     std::string topic = "homeassistant/text/colada/" + device.device_id + "_text_input/config";
 
     return mqtt_client_.publish(topic, Json::writeString(Json::StreamWriterBuilder(), config), 1, true);
+}
+
+bool DiscoveryPublisher::publishAppSelect(const Device& device) {
+    auto apps = AppsRepository::getInstance().getAppsForDevice(device.device_id);
+    if (apps.empty()) {
+        // Nothing synced yet. Publishing a select with no options would give
+        // Home Assistant an empty dropdown, which reads as broken; the
+        // Refresh Apps button fills this in and discovery runs again.
+        std::cout << "[DiscoveryPublisher] no apps stored for " << device.device_id
+                  << " yet - skipping app picker (press Refresh Apps)" << std::endl;
+        return false;
+    }
+
+    Json::Value options(Json::arrayValue);
+    for (const auto& app : apps) options.append(app.app_name);
+
+    Json::Value config;
+    config["name"] = device.name + " App";
+    config["unique_id"] = "colada_" + device.device_id + "_app";
+    config["device"] = buildDeviceInfo(device);
+    config["command_topic"] = "maestro_hub/colada/" + device.device_id + "/launch_app";
+    config["options"] = options;
+    config["icon"] = "mdi:apps";
+
+    std::string topic = "homeassistant/select/colada/" + device.device_id + "_app/config";
+    bool published =
+        mqtt_client_.publish(topic, Json::writeString(Json::StreamWriterBuilder(), config), 1, true);
+
+    if (published)
+        std::cout << "[DiscoveryPublisher] ✅ Published app picker with " << options.size()
+                  << " apps for " << device.name << std::endl;
+    return published;
+}
+
+bool DiscoveryPublisher::publishVoiceEntity(const Device& device) {
+    Json::Value config;
+
+    config["name"] = device.name + " Voice Command";
+    config["unique_id"] = "colada_" + device.device_id + "_voice";
+    config["device"] = buildDeviceInfo(device);
+    config["command_topic"] = "maestro_hub/colada/" + device.device_id + "/voice_say";
+    config["icon"] = "mdi:microphone-message";
+    config["mode"] = "text";
+    // Alexa utterances are short; the cap keeps a runaway template from
+    // synthesising a paragraph at the TV.
+    config["max"] = 255;
+
+    std::string topic = "homeassistant/text/colada/" + device.device_id + "_voice/config";
+    return mqtt_client_.publish(topic, Json::writeString(Json::StreamWriterBuilder(), config), 1,
+                                true);
 }
 
 } // namespace hms_firetv

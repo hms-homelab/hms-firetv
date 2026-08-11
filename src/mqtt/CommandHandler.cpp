@@ -1,4 +1,7 @@
 #include "mqtt/CommandHandler.h"
+#include "repositories/AppsRepository.h"
+#include "services/AppSyncService.h"
+#include "services/VoiceService.h"
 #include <algorithm>
 #include <iostream>
 #include <thread>
@@ -40,6 +43,14 @@ void CommandHandler::handleCommand(const std::string& device_id, const Json::Val
     std::string command = payload["command"].asString();
     std::cout << "[CommandHandler] Command: " << command << std::endl;
 
+    // Voice runs its own session lifecycle (bookends, WebSocket, TTS) and
+    // wakes the device itself, so it does not go through the client cache.
+    if (command.rfind("voice_", 0) == 0) {
+        handleVoiceCommand(device_id, command, payload);
+        DeviceRepository::getInstance().updateLastSeen(device_id, "online");
+        return;
+    }
+
     // Get Lightning client for device
     auto client = getClientForDevice(device_id);
     if (!client) {
@@ -65,9 +76,17 @@ void CommandHandler::handleCommand(const std::string& device_id, const Json::Val
     } else if (command == "navigate") {
         handleNavigationCommand(*client, payload);
     } else if (command == "select_source" || command == "launch_app") {
-        handleAppLaunchCommand(*client, payload);
+        handleAppLaunchCommand(device_id, *client, payload);
     } else if (command == "send_text" || command == "keyboard_input") {
         handleTextInputCommand(*client, payload);
+    } else if (command == "hold") {
+        handleHoldCommand(*client, payload);
+    } else if (command == "key_down") {
+        handleKeyEdgeCommand(*client, payload, "keyDown");
+    } else if (command == "key_up") {
+        handleKeyEdgeCommand(*client, payload, "keyUp");
+    } else if (command == "apps_refresh") {
+        handleAppsRefreshCommand(device_id, *client);
     } else {
         std::cerr << "[CommandHandler] Unknown command: " << command << std::endl;
     }
@@ -237,7 +256,9 @@ void CommandHandler::handlePowerCommand(LightningClient& client, const std::stri
     }
 }
 
-void CommandHandler::handleAppLaunchCommand(LightningClient& client, const Json::Value& payload) {
+void CommandHandler::handleAppLaunchCommand(const std::string& device_id,
+                                            LightningClient& client,
+                                            const Json::Value& payload) {
     std::string package;
 
     // Check for package name directly
@@ -247,10 +268,17 @@ void CommandHandler::handleAppLaunchCommand(LightningClient& client, const Json:
     // Check for source/app name
     else if (payload.isMember("source")) {
         std::string app_name = payload["source"].asString();
-        package = getPackageForApp(app_name);
+
+        // Prefer the apps synced from this device - that list is the real
+        // one and is what the Home Assistant picker offers. The static map
+        // below only covers eight well-known apps and cannot name anything
+        // the device actually has installed.
+        package = getPackageForAppOnDevice(device_id, app_name);
+        if (package.empty()) package = getPackageForApp(app_name);
 
         if (package.empty()) {
-            std::cerr << "[CommandHandler] Unknown app: " << app_name << std::endl;
+            std::cerr << "[CommandHandler] Unknown app: " << app_name
+                      << " (try apps_refresh to sync this device's app list)" << std::endl;
             return;
         }
     } else {
@@ -268,6 +296,142 @@ void CommandHandler::handleAppLaunchCommand(LightningClient& client, const Json:
     } else {
         std::cerr << "[CommandHandler] ❌ App launch failed: "
                   << result.status_code << std::endl;
+    }
+}
+
+// ============================================================================
+// PRESS AND HOLD
+// ============================================================================
+
+void CommandHandler::handleHoldCommand(LightningClient& client, const Json::Value& payload) {
+    std::string action;
+    if (payload.isMember("action")) {
+        action = payload["action"].asString();
+    } else if (payload.isMember("direction")) {
+        action = "dpad_" + payload["direction"].asString();
+    } else {
+        std::cerr << "[CommandHandler] Hold command missing 'action' or 'direction'" << std::endl;
+        return;
+    }
+
+    int ms = payload.get("ms", 500).asInt();
+    // Bounded so a bad payload cannot pin a key down indefinitely - the
+    // device keeps repeating until it sees the keyUp.
+    ms = std::max(50, std::min(ms, 10000));
+
+    auto down = client.holdKey(action);
+    if (!down.success) {
+        std::cerr << "[CommandHandler] ❌ keyDown failed: " << down.status_code << std::endl;
+        return;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+
+    auto up = client.releaseKey(action);
+    if (up.success) {
+        std::cout << "[CommandHandler] ✅ Held " << action << " for " << ms << "ms" << std::endl;
+    } else {
+        // Leaving a key down would make the device unusable, so this is worth
+        // shouting about rather than logging quietly.
+        std::cerr << "[CommandHandler] ⚠️  keyUp failed for " << action << " ("
+                  << up.status_code << ") - key may be stuck down" << std::endl;
+    }
+}
+
+void CommandHandler::handleKeyEdgeCommand(LightningClient& client, const Json::Value& payload,
+                                          const std::string& key_action_type) {
+    std::string action;
+    if (payload.isMember("action")) {
+        action = payload["action"].asString();
+    } else if (payload.isMember("direction")) {
+        action = "dpad_" + payload["direction"].asString();
+    } else {
+        std::cerr << "[CommandHandler] " << key_action_type
+                  << " missing 'action' or 'direction'" << std::endl;
+        return;
+    }
+
+    auto result = client.sendNavigationCommand(action, key_action_type);
+    if (result.success) {
+        std::cout << "[CommandHandler] ✅ " << key_action_type << " " << action << std::endl;
+    } else {
+        std::cerr << "[CommandHandler] ❌ " << key_action_type << " " << action
+                  << " failed: " << result.status_code << std::endl;
+    }
+}
+
+// ============================================================================
+// APP LIST
+// ============================================================================
+
+void CommandHandler::handleAppsRefreshCommand(const std::string& device_id,
+                                              LightningClient& client) {
+    auto result = AppSyncService::syncDevice(device_id, client);
+    if (!result.success) {
+        std::cerr << "[CommandHandler] ❌ App sync failed: " << result.error << std::endl;
+        return;
+    }
+
+    std::cout << "[CommandHandler] ✅ Synced " << result.stored << " apps for " << device_id
+              << std::endl;
+
+    // The select entity's options live in its discovery payload, so the
+    // dropdown only picks up the new list once that is republished.
+    std::function<void(const std::string&)> republish;
+    {
+        std::lock_guard<std::mutex> lock(republish_mutex_);
+        republish = discovery_republish_;
+    }
+    if (republish) republish(device_id);
+}
+
+void CommandHandler::setDiscoveryRepublish(std::function<void(const std::string&)> callback) {
+    std::lock_guard<std::mutex> lock(republish_mutex_);
+    discovery_republish_ = std::move(callback);
+}
+
+// ============================================================================
+// VOICE
+// ============================================================================
+
+void CommandHandler::handleVoiceCommand(const std::string& device_id,
+                                        const std::string& command,
+                                        const Json::Value& payload) {
+    auto& voice = VoiceService::getInstance();
+    Json::Value result;
+
+    if (command == "voice_start") {
+        result = voice.startSession(device_id);
+    } else if (command == "voice_stop") {
+        result = voice.stopSession(device_id);
+    } else if (command == "voice_say") {
+        std::string text = payload.isMember("text") ? payload["text"].asString()
+                                                    : payload.get("value", "").asString();
+        if (text.empty()) {
+            std::cerr << "[CommandHandler] voice_say with no text" << std::endl;
+            return;
+        }
+        result = voice.say(device_id, text);
+    } else if (command == "voice_audio") {
+        if (payload.isMember("url")) {
+            result = voice.speakUrl(device_id, payload["url"].asString());
+        } else if (payload.isMember("file")) {
+            result = voice.speakFile(device_id, payload["file"].asString());
+        } else {
+            std::cerr << "[CommandHandler] voice_audio needs 'url' or 'file'" << std::endl;
+            return;
+        }
+    } else {
+        std::cerr << "[CommandHandler] Unknown voice command: " << command << std::endl;
+        return;
+    }
+
+    if (result.get("success", false).asBool()) {
+        std::cout << "[CommandHandler] ✅ " << command << ": "
+                  << result.get("message", "ok").asString() << std::endl;
+    } else {
+        std::cerr << "[CommandHandler] ❌ " << command << ": "
+                  << result.get("error", "failed").asString() << std::endl;
     }
 }
 
@@ -295,6 +459,32 @@ std::string CommandHandler::getPackageForApp(const std::string& app_name) {
     }
 
     return "";  // Not found
+}
+
+std::string CommandHandler::getPackageForAppOnDevice(const std::string& device_id,
+                                                     const std::string& app_name) {
+    auto lower = [](std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+        return s;
+    };
+
+    std::string wanted = lower(app_name);
+    auto apps = AppsRepository::getInstance().getAppsForDevice(device_id);
+
+    // Exact name first.
+    for (const auto& app : apps)
+        if (lower(app.app_name) == wanted) return app.package_name;
+
+    // Then the package itself, so a picker can pass either.
+    for (const auto& app : apps)
+        if (lower(app.package_name) == wanted) return app.package_name;
+
+    // Then a prefix, because device titles carry marketing tails - asking for
+    // "Tubi" should still launch "Tubi: Watch Free Movies & TV Shows".
+    for (const auto& app : apps)
+        if (lower(app.app_name).rfind(wanted, 0) == 0) return app.package_name;
+
+    return "";
 }
 
 bool CommandHandler::ensureDeviceAwake(LightningClient& client) {
