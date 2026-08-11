@@ -381,14 +381,14 @@ DB_HOST=192.168.1.15 \
 DB_PORT=5432 \
 DB_NAME=firetv \
 DB_USER=firetv_user \
-DB_PASSWORD=REDACTED \
+DB_PASSWORD=$(DB_PASSWORD) \
 API_PORT=9888 \
 ./hms_firetv
 ```
 
 ### Database Access
 ```bash
-PGPASSWORD=REDACTED psql \
+PGPASSWORD=$(DB_PASSWORD) psql \
   -h 192.168.1.15 \
   -U firetv_user \
   -d firetv

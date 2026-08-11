@@ -46,13 +46,13 @@ sudo apt-get install libpaho-mqtt-dev libpaho-mqttpp-dev
 **PostgreSQL** (postgres_maestro container)
 - Database: `firetv`
 - User: `firetv_user`
-- Password: `REDACTED`
+- Password: `$(DB_PASSWORD)`
 - Port: 5432
 
 **EMQX MQTT Broker** (emqx container)
 - Broker: 192.168.1.15:1883
 - User: `aamat`
-- Password: `REDACTED`
+- Password: `$(MQTT_PASS)`
 
 **Home Assistant**
 - URL: http://192.168.1.7:8123
@@ -234,15 +234,15 @@ curl http://localhost:8888/health
 
 ```bash
 # Monitor all button command topics
-mosquitto_sub -h 192.168.1.15 -u aamat -P REDACTED \
+mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/colada/#" -v
 
 # Monitor discovery messages
-mosquitto_sub -h 192.168.1.15 -u aamat -P REDACTED \
+mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
   -t "homeassistant/button/colada/#" -v
 
 # Monitor availability
-mosquitto_sub -h 192.168.1.15 -u aamat -P REDACTED \
+mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/+/availability" -v
 ```
 
@@ -334,7 +334,7 @@ sudo journalctl -u hms-firetv -n 100
 2. **MQTT broker not available**
    ```bash
    docker ps | grep emqx
-   mosquitto_pub -h 192.168.1.15 -u aamat -P REDACTED -t test -m test
+   mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) -t test -m test
    ```
 
 3. **Port 8888 already in use**
@@ -352,7 +352,7 @@ sudo journalctl -u hms-firetv -n 100
 
 **Check discovery messages:**
 ```bash
-mosquitto_sub -h 192.168.1.15 -u aamat -P REDACTED \
+mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
   -t "homeassistant/button/colada/+/config" -C 4
 ```
 
@@ -370,7 +370,7 @@ mosquitto_sub -h 192.168.1.15 -u aamat -P REDACTED \
 **Test direct MQTT:**
 ```bash
 # Send volume up command
-mosquitto_pub -h 192.168.1.15 -u aamat -P REDACTED \
+mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/colada/livingroom_colada/volume_up" \
   -m "PRESS"
 
