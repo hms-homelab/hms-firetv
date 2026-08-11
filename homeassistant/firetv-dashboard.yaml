@@ -157,10 +157,98 @@ button_card_templates:
         box-shadow: 0 0 16px rgba(79,195,232,0.45) !important;
       }
 
+  # ── keys that sit ON the pad disc ───────────────────────────────────────
+  # No shell of their own: the disc behind them provides the surface.
+  ftv_pad_flat:
+    color_type: card
+    show_icon: true
+    show_name: false
+    styles:
+      card:
+        - background: transparent
+        - border: none
+        - box-shadow: none
+        - border-radius: 50%
+        - width: 62px
+        - height: 62px
+        - margin: 0 auto
+      icon:
+        - width: 26px
+        - color: "#C3D0DE"
+    extra_styles: |
+      ha-card { transition: transform .1s ease, filter .1s ease; }
+      ha-card:active {
+        transform: scale(0.86);
+        filter: brightness(1.8) drop-shadow(0 0 12px rgba(79,195,232,0.9));
+      }
+      @media (prefers-reduced-motion: reduce) {
+        ha-card { transition: none; }
+        ha-card:active { transform: none; }
+      }
+
+  # The centre of the disc reads as a ring, not a raised button.
+  ftv_ok_ring:
+    color_type: card
+    show_icon: false
+    show_name: true
+    name: OK
+    styles:
+      card:
+        - background: "radial-gradient(circle at 50% 40%, rgba(255,255,255,0.05), rgba(255,255,255,0.01))"
+        - border: 1px solid rgba(255,255,255,0.10)
+        - box-shadow: none
+        - border-radius: 50%
+        - width: 108px
+        - height: 108px
+        - margin: 0 auto
+      name:
+        - font-size: 13px
+        - font-weight: 600
+        - letter-spacing: 0.18em
+        - color: "#D9E9F4"
+    extra_styles: |
+      ha-card { transition: transform .1s ease, background .1s ease, box-shadow .1s ease; }
+      ha-card:active {
+        transform: scale(0.94);
+        background: rgba(79,195,232,0.14) !important;
+        box-shadow: 0 0 22px rgba(79,195,232,0.5) !important;
+      }
+
+  # Device chips instead of a dropdown: three devices are quicker to switch
+  # between than to pick out of a list, and the current one stays visible.
+  ftv_chip:
+    color_type: card
+    show_icon: false
+    show_name: true
+    styles:
+      card:
+        - background: "rgba(255,255,255,0.05)"
+        - border: none
+        - border-radius: 999px
+        - height: 34px
+        - box-shadow: none
+      name:
+        - font-size: 12px
+        - color: "#93A1B0"
+        - white-space: nowrap
+    extra_styles: |
+      ha-card { transition: background .15s ease, transform .1s ease; }
+      ha-card:active { transform: scale(0.94); }
+
+  ftv_chip_on:
+    template: ftv_chip
+    styles:
+      card:
+        - background: "rgba(79,195,232,0.16)"
+        - box-shadow: "inset 0 0 0 1px rgba(79,195,232,0.35)"
+      name:
+        - color: "#8ADAF2"
+        - font-weight: 600
+
 views:
-  # Split into three views rather than one long column: on a phone the
-  # pad has to sit under the thumb without scrolling, and 25 app tiles
-  # below it pushed everything off screen.
+  # Split into three views rather than one long column: on a phone the pad has
+  # to sit under the thumb without scrolling, and 25 app tiles below it pushed
+  # everything off screen.
   - title: Remote
     path: remote
     icon: mdi:remote
@@ -168,99 +256,118 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: custom:mushroom-select-card
-            entity: input_select.fire_tv_target
-            name: Fire TV
-            icon: mdi:television-play
-            secondary_info: none
+
+          # ── which device ────────────────────────────────────────────────
+          - type: custom:config-template-card
+            entities:
+              - sensor.hms_firetv_devices
+              - input_select.fire_tv_target
+            card:
+              type: horizontal-stack
+              card_mod:
+                style: |
+                  #root { gap: 8px; justify-content: flex-start; }
+              cards: >-
+                ${((states['sensor.hms_firetv_devices'] && states['sensor.hms_firetv_devices'].attributes.devices) || []).map(function (d) {
+                return { type: 'custom:button-card',
+                template: (d.name === states['input_select.fire_tv_target'].state ? 'ftv_chip_on' : 'ftv_chip'),
+                name: d.name.replace(/ Fire ?TV.*$/i, ''),
+                tap_action: { action: 'call-service', service: 'input_select.select_option',
+                service_data: { entity_id: 'input_select.fire_tv_target', option: d.name } } }; })}
+
+          # ── the pad ─────────────────────────────────────────────────────
+          # One machined disc holding all five keys, rather than five separate
+          # buttons floating in a column. The disc is drawn on the stack's own
+          # container and the keys inside it are transparent.
+          - type: vertical-stack
             card_mod:
               style: |
-                ha-card {
-                  background: rgba(255,255,255,0.05);
-                  border: none;
-                  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-                  --primary-text-color: #E3EDF5;
-                  --secondary-text-color: #93A1B0;
-                  --card-primary-color: #E3EDF5;
-                  --card-secondary-color: #93A1B0;
-                  --mdc-select-fill-color: rgba(255,255,255,0.06);
-                  --mdc-select-ink-color: #E3EDF5;
-                  --mdc-select-label-ink-color: #8FA0B2;
+                #root {
+                  width: 272px;
+                  height: 272px;
+                  margin: 16px auto 6px;
+                  border-radius: 50%;
+                  background:
+                    radial-gradient(circle at 50% 36%, #242D3C 0%, #171E29 58%, #0F141C 100%);
+                  box-shadow:
+                    inset 0 1px 0 rgba(255,255,255,0.08),
+                    inset 0 0 0 1px rgba(255,255,255,0.03),
+                    0 18px 40px -18px #000;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
                 }
+                /* stack children bring their own spacing, which would push the
+                   keys off the disc */
+                #root > * { margin: 0 !important; }
+            cards:
+              - type: horizontal-stack
+                card_mod:
+                  style: |
+                    #root { justify-content: center; }
+                cards:
+                  - type: custom:button-card
+                    template: ftv_pad_flat
+                    icon: mdi:chevron-up
+                    tap_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: up }
+                    hold_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: hold_up }
+              - type: horizontal-stack
+                card_mod:
+                  style: |
+                    #root { justify-content: center; gap: 18px; align-items: center; }
+                cards:
+                  - type: custom:button-card
+                    template: ftv_pad_flat
+                    icon: mdi:chevron-left
+                    tap_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: left }
+                    hold_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: hold_left }
+                  - type: custom:button-card
+                    template: ftv_ok_ring
+                    tap_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: select }
+                  - type: custom:button-card
+                    template: ftv_pad_flat
+                    icon: mdi:chevron-right
+                    tap_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: right }
+                    hold_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: hold_right }
+              - type: horizontal-stack
+                card_mod:
+                  style: |
+                    #root { justify-content: center; }
+                cards:
+                  - type: custom:button-card
+                    template: ftv_pad_flat
+                    icon: mdi:chevron-down
+                    tap_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: down }
+                    hold_action:
+                      action: call-service
+                      service: script.fire_tv_send_command
+                      service_data: { command: hold_down }
 
-          # tap steps once, hold repeats
-          - type: horizontal-stack
-            # The keys are fixed-width circles, so the stack sizes them to
-            # content and left-aligns the row. Centre it explicitly.
-            card_mod:
-              style: |
-                #root { justify-content: center; gap: 10px; }
-            cards:
-              - type: custom:button-card
-                template: ftv_pad
-                icon: mdi:chevron-up
-                tap_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: up }
-                hold_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: hold_up }
-          - type: horizontal-stack
-            # The keys are fixed-width circles, so the stack sizes them to
-            # content and left-aligns the row. Centre it explicitly.
-            card_mod:
-              style: |
-                #root { justify-content: center; gap: 10px; }
-            cards:
-              - type: custom:button-card
-                template: ftv_pad
-                icon: mdi:chevron-left
-                tap_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: left }
-                hold_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: hold_left }
-              - type: custom:button-card
-                template: ftv_ok
-                tap_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: select }
-              - type: custom:button-card
-                template: ftv_pad
-                icon: mdi:chevron-right
-                tap_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: right }
-                hold_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: hold_right }
-          - type: horizontal-stack
-            # The keys are fixed-width circles, so the stack sizes them to
-            # content and left-aligns the row. Centre it explicitly.
-            card_mod:
-              style: |
-                #root { justify-content: center; gap: 10px; }
-            cards:
-              - type: custom:button-card
-                template: ftv_pad
-                icon: mdi:chevron-down
-                tap_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: down }
-                hold_action:
-                  action: call-service
-                  service: script.fire_tv_send_command
-                  service_data: { command: hold_down }
-
+          # ── system row ──────────────────────────────────────────────────
           - type: horizontal-stack
             cards:
               - type: custom:button-card
@@ -297,6 +404,7 @@ views:
                   service: script.fire_tv_send_command
                   service_data: { command: wake }
 
+          # ── media and volume ────────────────────────────────────────────
           - type: horizontal-stack
             cards:
               - type: custom:button-card
@@ -315,18 +423,90 @@ views:
                   service_data: { command: pause }
               - type: custom:button-card
                 template: ftv_key
-                icon: mdi:volume-minus
+                icon: mdi:fast-forward
                 tap_action:
                   action: call-service
                   service: script.fire_tv_send_command
-                  service_data: { command: volume_down }
+                  service_data: { command: fast_forward }
               - type: custom:button-card
                 template: ftv_key
-                icon: mdi:volume-plus
+                icon: mdi:volume-high
                 tap_action:
                   action: call-service
                   service: script.fire_tv_send_command
                   service_data: { command: volume_up }
+
+          # ── speak to Alexa, inline ──────────────────────────────────────
+          # One pill with the phrase and the send key on the same line, rather
+          # than a titled card with buttons underneath it.
+          - type: horizontal-stack
+            card_mod:
+              style: |
+                #root { gap: 8px; align-items: center; }
+            cards:
+              - type: entities
+                show_header_toggle: false
+                card_mod:
+                  # This build renders the text field as a Web Awesome
+                  # <wa-input>, not an ha-textfield, which is why styling the
+                  # card alone left a white box sitting in a dark pill. The
+                  # field exposes part="base", and a part is styleable from
+                  # outside its shadow root — so the rule only has to be
+                  # injected as far as <ha-input>.
+                  style:
+                    hui-input-text-entity-row:
+                      $:
+                        ha-input:
+                          $: |
+                            /* !important because the component styles the same
+                               box with a class selector, which outranks a
+                               ::part() rule coming from outside its shadow root */
+                            wa-input::part(base) {
+                              background: rgba(255,255,255,0.06) !important;
+                              border-color: rgba(255,255,255,0.12) !important;
+                              color: #E3EDF5 !important;
+                            }
+                            wa-input::part(input) { color: #E3EDF5 !important; }
+                            wa-input::part(input)::placeholder { color: #6E7A8A !important; }
+                    .: |
+                      ha-card {
+                        background: rgba(255,255,255,0.05);
+                        border: none;
+                        border-radius: 14px;
+                        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+                        --primary-text-color: #E3EDF5;
+                        --secondary-text-color: #93A1B0;
+                        --paper-item-icon-color: #5FC6E6;
+                      }
+                      #states { padding: 2px 6px; }
+                entities:
+                  - entity: input_text.fire_tv_voice
+                    name: " "
+                    icon: mdi:microphone
+              - type: custom:button-card
+                template: ftv_action
+                show_name: false
+                icon: mdi:send
+                styles:
+                  card:
+                    - background: "linear-gradient(160deg,#3EAECF,#1E7898)"
+                    - width: 56px
+                  icon:
+                    - color: "#04212C"
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_speak
+
+          - type: custom:button-card
+            template: ftv_action
+            name: Hold to talk
+            icon: mdi:microphone
+            styles:
+              card:
+                - background: "rgba(79,195,232,0.16)"
+            tap_action:
+              action: url
+              url_path: https://192.168.2.15:8443/voice.html
 
   - title: Voice
     path: voice
