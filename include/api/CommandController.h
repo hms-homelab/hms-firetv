@@ -47,7 +47,33 @@ public:
     // Command history
     ADD_METHOD_TO(CommandController::getHistory, "/api/devices/{1}/history", Get);
 
+    // Press and hold, and the raw key edges behind it
+    ADD_METHOD_TO(CommandController::hold, "/api/devices/{1}/hold", Post);
+    ADD_METHOD_TO(CommandController::key, "/api/devices/{1}/key", Post);
+
     METHOD_LIST_END
+
+    /**
+     * Press and hold a key.
+     * POST /api/devices/:id/hold
+     * Body: {"action": "dpad_down", "ms": 800}
+     *
+     * Sends keyDown, waits, then keyUp - which is how the official app makes
+     * the device repeat a key. Runs off the request thread so a long hold
+     * does not occupy a Drogon worker.
+     */
+    void hold(const HttpRequestPtr& req,
+              std::function<void(const HttpResponsePtr&)>&& callback,
+              std::string device_id);
+
+    /**
+     * Send a single key edge, for a caller that holds the key itself.
+     * POST /api/devices/:id/key
+     * Body: {"action": "dpad_down", "edge": "down"}   // or "up"
+     */
+    void key(const HttpRequestPtr& req,
+             std::function<void(const HttpResponsePtr&)>&& callback,
+             std::string device_id);
 
     /**
      * Send generic command

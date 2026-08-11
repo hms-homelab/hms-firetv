@@ -23,13 +23,12 @@ struct Device {
     std::optional<std::string> pin_code;                         // Current PIN for pairing
     std::optional<std::chrono::system_clock::time_point> pin_expires_at;  // PIN expiration
     std::string status;                                          // online|offline|pairing|error
-    bool adb_enabled;                                            // ADB debugging enabled
     std::optional<std::chrono::system_clock::time_point> last_seen_at;    // Last successful command
     std::chrono::system_clock::time_point created_at;
     std::chrono::system_clock::time_point updated_at;
 
     // Constructor with defaults
-    Device() : id(0), api_key("0987654321"), status("offline"), adb_enabled(false) {
+    Device() : id(0), api_key("0987654321"), status("offline") {
         auto now = std::chrono::system_clock::now();
         created_at = now;
         updated_at = now;
@@ -70,7 +69,6 @@ struct Device {
         json["ip_address"] = ip_address;
         json["api_key"] = api_key;
         json["status"] = status;
-        json["adb_enabled"] = adb_enabled;
         json["is_paired"] = isPaired();
         json["is_online"] = isOnline();
 
@@ -111,7 +109,6 @@ struct Device {
         if (json.isMember("name")) device.name = json["name"].asString();
         if (json.isMember("ip_address")) device.ip_address = json["ip_address"].asString();
         if (json.isMember("api_key")) device.api_key = json["api_key"].asString();
-        if (json.isMember("adb_enabled")) device.adb_enabled = json["adb_enabled"].asBool();
 
         return device;
     }

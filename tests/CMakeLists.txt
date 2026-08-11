@@ -57,6 +57,11 @@ foreach(test_src ${TEST_SOURCES})
         ${CMAKE_SOURCE_DIR}/src/repositories/AppsRepository.cpp
         ${CMAKE_SOURCE_DIR}/src/services/DatabaseService.cpp
         ${CMAKE_SOURCE_DIR}/src/clients/LightningClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/clients/VoiceClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/clients/TtsClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/services/VoiceService.cpp
+        ${CMAKE_SOURCE_DIR}/src/services/AppSyncService.cpp
+        ${CMAKE_SOURCE_DIR}/src/api/VoiceController.cpp
         ${CMAKE_SOURCE_DIR}/src/mqtt/CommandHandler.cpp
         ${CMAKE_SOURCE_DIR}/src/mqtt/MQTTClient.cpp
         ${CMAKE_SOURCE_DIR}/src/mqtt/DiscoveryPublisher.cpp

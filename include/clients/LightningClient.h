@@ -171,6 +171,27 @@ public:
      * @param package_name Android package name (e.g., "com.netflix.ninja")
      * @return Command result with success status and timing
      */
+    /* Press-and-hold. The official app sends navigation as TWO requests,
+     * {"keyActionType":"keyDown"} then {"keyActionType":"keyUp"}, which is what
+     * produces key repeat on the device. A single body-less POST (what
+     * sendNavigationCommand does) is also valid and the app uses it too, but it
+     * can only ever be one discrete press. Captured from the app's own log. */
+    CommandResult sendNavigationCommand(const std::string& action,
+                                        const std::string& key_action_type);
+    CommandResult holdKey(const std::string& action);
+    CommandResult releaseKey(const std::string& action);
+
+    /* Installed apps. GET /v1/FireTV/appsV2 returns the list the official app
+     * shows in its Apps panel; launchApp() then takes one of those packages. */
+    CommandResult listApps();
+
+    /* Voice. These are only the BOOKENDS - the audio itself is binary frames on
+     * a WebSocket at wss://<ip>:9090/ (see DeviceConnection.sendVoiceData in the
+     * Fire TV app). Sending start/stop without streaming audio opens and closes
+     * the voice session on the device but says nothing. */
+    CommandResult voiceStart();
+    CommandResult voiceStop();
+
     CommandResult launchApp(const std::string& package_name);
 
     // ========================================================================

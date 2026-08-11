@@ -232,6 +232,54 @@ CommandResult LightningClient::sleep() {
 // APP LAUNCH
 // ============================================================================
 
+CommandResult LightningClient::sendNavigationCommand(const std::string& action,
+                                                     const std::string& key_action_type) {
+    std::string url  = base_url_ + "/v1/FireTV?action=" + action;
+    std::string body = "{\"keyActionType\":\"" + key_action_type + "\"}";
+
+    auto result = executePost(url, body);
+
+    if (result.success) {
+        std::cout << "[LightningClient] Navigation '" << action << "' "
+                  << key_action_type << " sent (" << result.response_time_ms
+                  << "ms)" << std::endl;
+    } else {
+        std::cerr << "[LightningClient] Navigation '" << action << "' "
+                  << key_action_type << " failed: " << result.status_code
+                  << std::endl;
+    }
+    return result;
+}
+
+CommandResult LightningClient::holdKey(const std::string& action) {
+    return sendNavigationCommand(action, "keyDown");
+}
+
+CommandResult LightningClient::releaseKey(const std::string& action) {
+    return sendNavigationCommand(action, "keyUp");
+}
+
+CommandResult LightningClient::listApps() {
+    auto result = executeGet(base_url_ + "/v1/FireTV/appsV2");
+
+    if (result.success) {
+        std::cout << "[LightningClient] Listed apps ("
+                  << result.response_time_ms << "ms)" << std::endl;
+    } else {
+        std::cerr << "[LightningClient] App list failed: "
+                  << result.status_code << std::endl;
+    }
+    return result;
+}
+
+CommandResult LightningClient::voiceStart() {
+    return executePost(base_url_ + "/v1/FireTV/voiceCommand?action=start");
+}
+
+CommandResult LightningClient::voiceStop() {
+    return executePost(base_url_ + "/v1/FireTV/voiceCommand?action=stop");
+}
+
 CommandResult LightningClient::launchApp(const std::string& package_name) {
     std::string url = base_url_ + "/v1/FireTV/app/" + package_name;
 

@@ -134,7 +134,6 @@ void DeviceController::createDevice(const HttpRequestPtr& req,
         device.ip_address = trim((*json)["ip_address"].asString());
         device.api_key = trim((*json).get("api_key", "0987654321").asString());
         device.status = "offline";
-        device.adb_enabled = (*json).get("adb_enabled", false).asBool();
 
         // Check if device already exists
         auto existing = DeviceRepository::getInstance().getDeviceById(device.device_id);
@@ -208,9 +207,6 @@ void DeviceController::updateDevice(const HttpRequestPtr& req,
         }
         if (json->isMember("status")) {
             device.status = (*json)["status"].asString();
-        }
-        if (json->isMember("adb_enabled")) {
-            device.adb_enabled = (*json)["adb_enabled"].asBool();
         }
         if (json->isMember("client_token")) {
             device.client_token = (*json)["client_token"].asString();
@@ -310,7 +306,6 @@ void DeviceController::getDeviceStatus(const HttpRequestPtr& req,
         response["status"] = device->status;
         response["ip_address"] = device->ip_address;
         response["is_paired"] = device->client_token.has_value() && !device->client_token.value().empty();
-        response["adb_enabled"] = device->adb_enabled;
 
         if (device->last_seen_at.has_value()) {
             auto last_seen_time_t = std::chrono::system_clock::to_time_t(device->last_seen_at.value());
@@ -341,7 +336,6 @@ Json::Value DeviceController::deviceToJson(const Device& device) {
     json["ip_address"] = device.ip_address;
     json["api_key"] = device.api_key;
     json["status"] = device.status;
-    json["adb_enabled"] = device.adb_enabled;
     json["is_paired"] = device.client_token.has_value() && !device.client_token.value().empty();
 
     // Include client_token only if present (sensitive data)

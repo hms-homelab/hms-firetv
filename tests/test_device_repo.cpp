@@ -40,7 +40,6 @@ int main() {
             test_device.ip_address = "192.168.2.99";
             test_device.api_key = "0987654321";
             test_device.status = "offline";
-            test_device.adb_enabled = true;
 
             auto created = DeviceRepository::getInstance().createDevice(test_device);
             if (created.has_value()) {

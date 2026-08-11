@@ -44,7 +44,21 @@ public:
     // Bulk add popular apps
     ADD_METHOD_TO(AppsController::bulkAddApps, "/api/devices/{1}/apps/bulk", Post);
 
+    // Pull the real installed-app list off the device
+    ADD_METHOD_TO(AppsController::syncApps, "/api/devices/{1}/apps/sync", Post);
+
     METHOD_LIST_END
+
+    /**
+     * Replace the stored app list with what the device actually has installed.
+     * POST /api/devices/:id/apps/sync
+     *
+     * Reads GET /v1/FireTV/appsV2 from the Fire TV. This is what the old
+     * optional ADB integration existed to do, without needing ADB.
+     */
+    void syncApps(const HttpRequestPtr& req,
+                  std::function<void(const HttpResponsePtr&)>&& callback,
+                  std::string device_id);
 
     /**
      * List all apps for device

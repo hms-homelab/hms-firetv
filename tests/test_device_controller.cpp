@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
 #include "api/DeviceController.h"
 #include "repositories/DeviceRepository.h"
-#include "services/DatabaseService.h"
+#include "database/SQLiteDatabase.h"
+#include <memory>
 #include <drogon/drogon.h>
 
 using namespace hms_firetv;
@@ -9,26 +10,25 @@ using namespace drogon;
 
 class DeviceControllerTest : public ::testing::Test {
 protected:
+    std::shared_ptr<SQLiteDatabase> db;
     void SetUp() override {
-        // Initialize database for testing
-        try {
-            DatabaseService::getInstance().initialize(
-                "localhost", 5432, "firetv_test", "maestro", "maestro_postgres_2026_secure"
-            );
-        } catch (...) {
-            // Use production DB if test DB doesn't exist
-            DatabaseService::getInstance().initialize(
-                "192.168.2.15", 5432, "firetv", "maestro", "maestro_postgres_2026_secure"
-            );
-        }
+        // An in-memory SQLite database per test, wired into the repositories.
+        //
+        // These tests used to call DatabaseService::initialize() and nothing
+        // else, which left DeviceRepository::db_ null - every repository call
+        // then short-circuited to nullopt before touching a database, so the
+        // controllers answered 500 and the assertions failed. They also fell
+        // back to the PRODUCTION database and ran DELETEs against it. An
+        // in-memory database fixes both: the repositories are actually wired,
+        // and no test can reach real data.
+        db = std::make_shared<SQLiteDatabase>(":memory:");
+        db->connect();
+        DeviceRepository::setDatabase(db);
     }
 
     void TearDown() override {
         // Cleanup test devices
-        try {
-            std::string cleanup = "DELETE FROM fire_tv_devices WHERE device_id LIKE 'unittest_%'";
-            DatabaseService::getInstance().executeQuery(cleanup);
-        } catch (...) {}
+        // Nothing to clean up - the in-memory database dies with the test.
     }
 };
 
@@ -95,7 +95,6 @@ TEST_F(DeviceControllerTest, GetDeviceByIdSuccess) {
     device.ip_address = "192.168.1.101";
     device.api_key = "test_key";
     device.status = "offline";
-    device.adb_enabled = false;
 
     auto created = DeviceRepository::getInstance().createDevice(device);
     ASSERT_TRUE(created.has_value());
@@ -129,7 +128,6 @@ TEST_F(DeviceControllerTest, UpdateDeviceSuccess) {
     device.ip_address = "192.168.1.102";
     device.api_key = "test_key";
     device.status = "offline";
-    device.adb_enabled = false;
 
     DeviceRepository::getInstance().createDevice(device);
 
@@ -167,7 +165,6 @@ TEST_F(DeviceControllerTest, DeleteDeviceSuccess) {
     device.ip_address = "192.168.1.103";
     device.api_key = "test_key";
     device.status = "offline";
-    device.adb_enabled = false;
 
     DeviceRepository::getInstance().createDevice(device);
 
@@ -203,7 +200,6 @@ TEST_F(DeviceControllerTest, GetDeviceStatusSuccess) {
     device.ip_address = "192.168.1.104";
     device.api_key = "test_key";
     device.status = "online";
-    device.adb_enabled = true;
 
     DeviceRepository::getInstance().createDevice(device);
 
@@ -226,7 +222,6 @@ TEST_F(DeviceControllerTest, GetDeviceStatusSuccess) {
     EXPECT_TRUE(response_data["success"].asBool());
     EXPECT_EQ(response_data["device_id"].asString(), "unittest_device_5");
     EXPECT_EQ(response_data["status"].asString(), "online");
-    EXPECT_TRUE(response_data["adb_enabled"].asBool());
 }
 
 // Test: Get non-existent device returns 404

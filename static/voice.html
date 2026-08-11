@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fire TV Voice</title>
+<!--
+  Live microphone relay for the Fire TV Alexa channel.
+
+      this page  --wss /ws/voice?device=--> hms-firetv --wss :9090--> Fire TV
+
+  The Fire TV wants raw PCM at 16 kHz, mono, signed 16-bit little-endian
+  (read out of the official app's VoiceSearch class). All the conversion is
+  done here so the service can forward frames untouched:
+
+    - the AudioContext is asked for 16 kHz directly, which Chrome and Firefox
+      honour; when a browser refuses and gives its hardware rate instead, the
+      samples are linearly resampled below
+    - stereo is downmixed to mono
+    - float samples are clamped and converted to int16
+
+  Push to talk: audio only flows while the button is held, and releasing it
+  closes the session, which is what tells Alexa the utterance ended.
+
+  MICROPHONE ACCESS NEEDS A SECURE CONTEXT. Serve this over https:// (set
+  API_SSL_PORT on the service) or from localhost. Over plain http:// on a LAN
+  address the browser will not grant a microphone, and the page says so.
+-->
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --line: #2a323d;
+    --text: #e6edf3; --dim: #8b949e;
+    --accent: #22d3ee; --ok: #3fb950; --bad: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: .02em; margin: 0 0 20px; }
+  .panel {
+    width: 100%; max-width: 420px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; padding: 18px;
+  }
+  label { display: block; font-size: 12px; text-transform: uppercase;
+          letter-spacing: .08em; color: var(--dim); margin-bottom: 6px; }
+  select {
+    width: 100%; padding: 10px 12px; margin-bottom: 18px; border-radius: 9px;
+    background: #0d1117; color: var(--text); border: 1px solid var(--line);
+    font-size: 15px;
+  }
+  #talk {
+    width: 100%; padding: 26px 16px; border: 0; border-radius: 12px;
+    background: var(--accent); color: #06232a; font-size: 19px; font-weight: 700;
+    letter-spacing: .04em; cursor: pointer; user-select: none;
+    -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+    touch-action: none; transition: transform .06s, background .15s;
+  }
+  #talk:disabled { background: #30363d; color: var(--dim); cursor: not-allowed; }
+  #talk.live { background: var(--bad); color: #fff; transform: scale(.98); }
+  .meter { height: 6px; background: #0d1117; border-radius: 3px;
+           margin-top: 14px; overflow: hidden; }
+  /* Driven from the audio callback ~16x a second while talking, so it scales
+     on the compositor rather than animating width, which would force a
+     layout pass on every audio frame. */
+  .meter div { height: 100%; width: 100%; background: var(--accent);
+               transform: scaleX(0); transform-origin: left;
+               transition: transform .06s; }
+  #status { margin-top: 14px; font-size: 12px; color: var(--dim);
+            min-height: 20px; word-break: break-word; }
+  #status.ok  { color: var(--ok); }
+  #status.bad { color: var(--bad); }
+  .hint { max-width: 420px; margin-top: 18px; font-size: 12px;
+          color: var(--dim); text-align: center; }
+  code { background: #0d1117; padding: 1px 5px; border-radius: 4px; }
+</style>
+
+<h1>FIRE TV VOICE</h1>
+
+<div class="panel">
+  <label for="device">Device</label>
+  <select id="device"></select>
+
+  <button id="talk" disabled>HOLD TO TALK</button>
+  <div class="meter"><div id="level"></div></div>
+  <div id="status">starting…</div>
+</div>
+
+<p class="hint">
+  Hold, speak, release. Releasing ends the utterance — that is what makes
+  Alexa act on it.
+</p>
+
+<script>
+(() => {
+  'use strict';
+
+  const TARGET_RATE = 16000;   // the Fire TV accepts nothing else
+  const FRAME = 1024;          // capture granularity
+
+  const $device = document.getElementById('device');
+  const $talk   = document.getElementById('talk');
+  const $status = document.getElementById('status');
+  const $level  = document.getElementById('level');
+
+  let ws = null, ctx = null, stream = null, node = null, source = null;
+  let ready = false, talking = false;
+
+  const say = (msg, kind = '') => { $status.textContent = msg; $status.className = kind; };
+
+  // ---------------------------------------------------------------- devices
+  async function loadDevices() {
+    try {
+      const r = await fetch('/api/devices');
+      const d = await r.json();
+      const list = d.devices || [];
+      if (!list.length) { say('no devices registered', 'bad'); return false; }
+      $device.innerHTML = '';
+      for (const dev of list) {
+        const o = document.createElement('option');
+        o.value = dev.device_id;
+        o.textContent = dev.name || dev.device_id;
+        $device.appendChild(o);
+      }
+      return true;
+    } catch (e) {
+      say('cannot reach the service: ' + e.message, 'bad');
+      return false;
+    }
+  }
+
+  // ------------------------------------------------------------------ audio
+  // Linear interpolation is plenty here: speech into a recogniser at 16 kHz,
+  // and the ratio from a typical 48 kHz context is small.
+  function resample(input, fromRate) {
+    if (fromRate === TARGET_RATE) return input;
+    const ratio = fromRate / TARGET_RATE;
+    const out = new Float32Array(Math.floor(input.length / ratio));
+    for (let i = 0; i < out.length; i++) {
+      const src = i * ratio, i0 = Math.floor(src), i1 = Math.min(i0 + 1, input.length - 1);
+      const f = src - i0;
+      out[i] = input[i0] * (1 - f) + input[i1] * f;
+    }
+    return out;
+  }
+
+  function toPcm16(floats) {
+    const pcm = new Int16Array(floats.length);
+    for (let i = 0; i < floats.length; i++) {
+      const s = Math.max(-1, Math.min(1, floats[i]));
+      pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return pcm;
+  }
+
+  async function openMic() {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: TARGET_RATE,      // honoured by Chrome/Firefox; a hint elsewhere
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+
+    // Ask for the target rate up front so most browsers never resample.
+    try { ctx = new AudioContext({ sampleRate: TARGET_RATE }); }
+    catch { ctx = new AudioContext(); }
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    source = ctx.createScriptProcessor
+      ? ctx.createScriptProcessor(FRAME, 1, 1)
+      : null;
+
+    // ScriptProcessor is deprecated but is the one path that works in every
+    // browser and in the Home Assistant companion webview, which is where
+    // this page is meant to live.
+    node = source;
+    const mic = ctx.createMediaStreamSource(stream);
+    mic.connect(node);
+
+    // Chrome will not run a ScriptProcessor unless it reaches a destination.
+    // A zero gain keeps it running without echoing the mic to the speakers.
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    node.connect(mute);
+    mute.connect(ctx.destination);
+
+    node.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+
+      let peak = 0;
+      for (let i = 0; i < input.length; i++) {
+        const a = Math.abs(input[i]);
+        if (a > peak) peak = a;
+      }
+      $level.style.transform = `scaleX(${Math.min(1, peak * 1.4)})`;
+
+      if (!talking || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const pcm = toPcm16(resample(input, ctx.sampleRate));
+      ws.send(pcm.buffer);
+    };
+  }
+
+  // --------------------------------------------------------------- transport
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws/voice?device=${encodeURIComponent($device.value)}`);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => { $talk.disabled = false; say('ready — hold to talk'); };
+
+    ws.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.type === 'ready') { ready = true; say('listening…', 'ok'); $talk.classList.add('live'); }
+      else if (m.type === 'stopped') { say('sent — ' + (m.detail || ''), 'ok'); }
+      else if (m.type === 'error') { say(m.detail || 'error', 'bad'); ready = false; $talk.classList.remove('live'); }
+    };
+
+    ws.onclose = () => { $talk.disabled = true; ready = false; say('disconnected — reconnecting…', 'bad'); setTimeout(connect, 2000); };
+    ws.onerror = () => say('websocket error', 'bad');
+  }
+
+  // ------------------------------------------------------------ push to talk
+  async function press(ev) {
+    ev.preventDefault();
+    if (talking || $talk.disabled) return;
+
+    // The mic is opened on the first press: a user gesture is required, and
+    // it keeps the capture indicator off until it is actually wanted.
+    if (!ctx) {
+      try { say('opening microphone…'); await openMic(); }
+      catch (e) {
+        say(window.isSecureContext
+              ? 'microphone refused: ' + e.message
+              : 'microphone needs https — open this page over TLS', 'bad');
+        return;
+      }
+    }
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    talking = true;
+    $talk.textContent = 'RELEASE TO SEND';
+    say('opening session…');
+    ws.send('start');
+  }
+
+  function release(ev) {
+    ev.preventDefault();
+    if (!talking) return;
+    talking = false;
+    ready = false;
+    $talk.textContent = 'HOLD TO TALK';
+    $talk.classList.remove('live');
+    $level.style.transform = 'scaleX(0)';
+    say('sending…');
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send('stop');
+  }
+
+  $talk.addEventListener('pointerdown', press);
+  $talk.addEventListener('pointerup', release);
+  $talk.addEventListener('pointercancel', release);
+  $talk.addEventListener('pointerleave', release);
+
+  $device.addEventListener('change', () => { if (ws) ws.close(); });
+
+  // ------------------------------------------------------------------- start
+  (async () => {
+    if (!window.isSecureContext) {
+      say('not a secure context — a microphone needs https:// or localhost', 'bad');
+    }
+    if (await loadDevices()) connect();
+  })();
+})();
+</script>

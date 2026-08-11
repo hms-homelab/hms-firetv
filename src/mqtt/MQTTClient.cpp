@@ -353,6 +353,42 @@ void MQTTClient::onMessageArrived(mqtt::const_message_ptr msg) {
         // Text input from text entity - payload is the text string
         payload["command"] = "send_text";
         payload["text"] = payload_str;
+    } else if (action == "voice_say") {
+        // Text entity again, but this one is spoken to Alexa rather than
+        // typed into a search box.
+        payload["command"] = "voice_say";
+        payload["text"] = payload_str;
+    } else if (action == "voice_audio") {
+        // A URL or a path, e.g. a Home Assistant TTS proxy URL.
+        payload["command"] = "voice_audio";
+        if (payload_str.rfind("http://", 0) == 0 || payload_str.rfind("https://", 0) == 0)
+            payload["url"] = payload_str;
+        else
+            payload["file"] = payload_str;
+    } else if (action == "launch_app" && payload_str != "PRESS") {
+        // Select entity - the payload is the chosen app name or package.
+        payload["command"] = "launch_app";
+        if (payload_str.find('.') != std::string::npos)
+            payload["package"] = payload_str;
+        else
+            payload["source"] = payload_str;
+    } else if (action == "hold" && payload_str != "PRESS") {
+        // "dpad_down" or "dpad_down,800"
+        payload["command"] = "hold";
+        auto comma = payload_str.find(',');
+        if (comma == std::string::npos) {
+            payload["action"] = payload_str;
+        } else {
+            payload["action"] = payload_str.substr(0, comma);
+            try {
+                payload["ms"] = std::stoi(payload_str.substr(comma + 1));
+            } catch (const std::exception&) {
+                std::cerr << "[MQTTClient] Bad hold duration in: " << payload_str << std::endl;
+            }
+        }
+    } else if ((action == "key_down" || action == "key_up") && payload_str != "PRESS") {
+        payload["command"] = action;
+        payload["action"] = payload_str;
     } else if (payload_str == "PRESS" && !action.empty()) {
         // Button press - convert action to command format
         // Map Python action names to our command format
@@ -377,6 +413,20 @@ void MQTTClient::onMessageArrived(mqtt::const_message_ptr msg) {
         } else if (action == "wake") {
             // Power on
             payload["command"] = "turn_on";
+        } else if (action == "fast_forward" || action == "rewind") {
+            payload["command"] =
+                (action == "fast_forward") ? "media_next_track" : "media_previous_track";
+        } else if (action == "voice_start" || action == "voice_stop") {
+            payload["command"] = action;
+        } else if (action == "apps_refresh") {
+            payload["command"] = "apps_refresh";
+        } else if (action.rfind("hold_", 0) == 0) {
+            // hold_down / hold_up / hold_left / hold_right - a button entity
+            // cannot express "hold", so each direction gets its own button
+            // with a fixed duration.
+            payload["command"] = "hold";
+            payload["action"] = "dpad_" + action.substr(5);
+            payload["ms"] = 1200;
         } else {
             std::cerr << "[MQTTClient] Unknown button action: " << action << std::endl;
             return;

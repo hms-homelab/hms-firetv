@@ -2,7 +2,8 @@
 #include "mqtt/CommandHandler.h"
 #include "clients/LightningClient.h"
 #include "repositories/DeviceRepository.h"
-#include "services/DatabaseService.h"
+#include "database/SQLiteDatabase.h"
+#include <memory>
 #include <thread>
 #include <chrono>
 
@@ -30,16 +31,17 @@ class CommandHandlerTest : public ::testing::Test {
 protected:
     std::string test_device_id = "unittest_handler_device";
     std::unique_ptr<TestableCommandHandler> handler;
+    std::shared_ptr<SQLiteDatabase> db;
 
     void SetUp() override {
-        try {
-            DatabaseService::getInstance().initialize(
-                "192.168.2.15", 5432, "firetv", "firetv_user", "firetv_postgres_2026_secure"
-            );
-        } catch (const std::exception& e) {
-            std::cerr << "Database init failed: " << e.what() << std::endl;
-            GTEST_SKIP() << "Database not available";
-        }
+        // In-memory SQLite wired into the repository. Previously this only
+        // called DatabaseService::initialize(), leaving DeviceRepository::db_
+        // null, so createDevice() below silently did nothing and every test
+        // ran against a device that was never there. It also pointed at the
+        // production database.
+        db = std::make_shared<SQLiteDatabase>(":memory:");
+        db->connect();
+        DeviceRepository::setDatabase(db);
 
         // Create test device with non-routable IP
         Device device;
@@ -48,7 +50,6 @@ protected:
         device.ip_address = "192.168.1.250";  // Non-routable test IP
         device.api_key = "0987654321";
         device.status = "online";
-        device.adb_enabled = false;
 
         // Clear any existing test device first
         DeviceRepository::getInstance().deleteDevice(test_device_id);

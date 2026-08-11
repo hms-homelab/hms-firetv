@@ -103,7 +103,6 @@ CREATE TABLE IF NOT EXISTS fire_tv_devices (
     pin_code TEXT,
     pin_expires_at TEXT,
     status TEXT NOT NULL DEFAULT 'offline',
-    adb_enabled INTEGER NOT NULL DEFAULT 0,
     last_seen_at TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -170,8 +169,11 @@ INSERT OR IGNORE INTO popular_apps (package_name, app_name, category) VALUES
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
 Device SQLiteDatabase::parseDevice(sqlite3_stmt* s) {
-    // Columns: id, device_id, name, ip_address, api_key, client_token, pin_code,
-    //          pin_expires_at, status, adb_enabled, last_seen_at, created_at, updated_at
+    // Columns are listed explicitly by every caller (see COLS in the SELECTs)
+    // rather than SELECT *, so these indices cannot drift with the physical
+    // column order of an older database file:
+    //   id, device_id, name, ip_address, api_key, client_token, pin_code,
+    //   pin_expires_at, status, last_seen_at, created_at, updated_at
     Device d;
     d.id           = sqlite3_column_int(s, 0);
     d.device_id    = col_str(s, 1);
@@ -182,10 +184,9 @@ Device SQLiteDatabase::parseDevice(sqlite3_stmt* s) {
     if (!col_is_null(s, 6)) d.pin_code     = col_str(s, 6);
     d.pin_expires_at = parseTsOpt(col_text(s, 7));
     d.status        = col_str(s, 8);
-    d.adb_enabled   = sqlite3_column_int(s, 9) != 0;
-    d.last_seen_at  = parseTsOpt(col_text(s, 10));
-    d.created_at    = parseTs(col_text(s, 11));
-    d.updated_at    = parseTs(col_text(s, 12));
+    d.last_seen_at  = parseTsOpt(col_text(s, 9));
+    d.created_at    = parseTs(col_text(s, 10));
+    d.updated_at    = parseTs(col_text(s, 11));
     return d;
 }
 
@@ -210,8 +211,8 @@ DeviceApp SQLiteDatabase::parseApp(sqlite3_stmt* s) {
 std::optional<Device> SQLiteDatabase::createDevice(const Device& device) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const char* sql =
-        "INSERT INTO fire_tv_devices (device_id,name,ip_address,api_key,status,adb_enabled,"
-        "created_at,updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)";
+        "INSERT INTO fire_tv_devices (device_id,name,ip_address,api_key,status,"
+        "created_at,updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)";
     StmtGuard g;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return std::nullopt;
     sqlite3_bind_text(g.s, 1, device.device_id.c_str(), -1, SQLITE_TRANSIENT);
@@ -219,14 +220,13 @@ std::optional<Device> SQLiteDatabase::createDevice(const Device& device) {
     sqlite3_bind_text(g.s, 3, device.ip_address.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(g.s, 4, device.api_key.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(g.s, 5, device.status.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(g.s, 6, device.adb_enabled ? 1 : 0);
     if (sqlite3_step(g.s) != SQLITE_DONE) return std::nullopt;
     return getDeviceById(device.device_id);
 }
 
 std::optional<Device> SQLiteDatabase::getDeviceById(const std::string& device_id) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const char* sql = "SELECT * FROM fire_tv_devices WHERE device_id=?";
+    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices WHERE device_id=?";
     StmtGuard g;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return std::nullopt;
     sqlite3_bind_text(g.s, 1, device_id.c_str(), -1, SQLITE_TRANSIENT);
@@ -236,7 +236,7 @@ std::optional<Device> SQLiteDatabase::getDeviceById(const std::string& device_id
 
 std::vector<Device> SQLiteDatabase::getAllDevices() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const char* sql = "SELECT * FROM fire_tv_devices ORDER BY created_at DESC";
+    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices ORDER BY created_at DESC";
     StmtGuard g;
     std::vector<Device> out;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return out;
@@ -246,7 +246,7 @@ std::vector<Device> SQLiteDatabase::getAllDevices() {
 
 std::vector<Device> SQLiteDatabase::getDevicesByStatus(const std::string& status) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const char* sql = "SELECT * FROM fire_tv_devices WHERE status=? ORDER BY created_at DESC";
+    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices WHERE status=? ORDER BY created_at DESC";
     StmtGuard g;
     std::vector<Device> out;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return out;
@@ -258,15 +258,14 @@ std::vector<Device> SQLiteDatabase::getDevicesByStatus(const std::string& status
 bool SQLiteDatabase::updateDevice(const Device& device) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const char* sql =
-        "UPDATE fire_tv_devices SET name=?,ip_address=?,status=?,adb_enabled=?,"
+        "UPDATE fire_tv_devices SET name=?,ip_address=?,status=?,"
         "updated_at=CURRENT_TIMESTAMP WHERE device_id=?";
     StmtGuard g;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return false;
     sqlite3_bind_text(g.s, 1, device.name.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(g.s, 2, device.ip_address.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(g.s, 3, device.status.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(g.s, 4, device.adb_enabled ? 1 : 0);
-    sqlite3_bind_text(g.s, 5, device.device_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(g.s, 4, device.device_id.c_str(), -1, SQLITE_TRANSIENT);
     return sqlite3_step(g.s) == SQLITE_DONE;
 }
 

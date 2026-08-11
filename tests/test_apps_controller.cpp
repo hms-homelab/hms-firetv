@@ -2,7 +2,8 @@
 #include "api/AppsController.h"
 #include "repositories/AppsRepository.h"
 #include "repositories/DeviceRepository.h"
-#include "services/DatabaseService.h"
+#include "database/SQLiteDatabase.h"
+#include <memory>
 #include <drogon/drogon.h>
 
 using namespace hms_firetv;
@@ -10,19 +11,23 @@ using namespace drogon;
 
 class AppsControllerTest : public ::testing::Test {
 protected:
+    std::shared_ptr<SQLiteDatabase> db;
     std::string test_device_id = "unittest_apps_device";
 
     void SetUp() override {
-        // Initialize database
-        try {
-            DatabaseService::getInstance().initialize(
-                "localhost", 5432, "firetv_test", "maestro", "maestro_postgres_2026_secure"
-            );
-        } catch (...) {
-            DatabaseService::getInstance().initialize(
-                "192.168.2.15", 5432, "firetv", "maestro", "maestro_postgres_2026_secure"
-            );
-        }
+        // An in-memory SQLite database per test, wired into the repositories.
+        //
+        // These tests used to call DatabaseService::initialize() and nothing
+        // else, which left DeviceRepository::db_ null - every repository call
+        // then short-circuited to nullopt before touching a database, so the
+        // controllers answered 500 and the assertions failed. They also fell
+        // back to the PRODUCTION database and ran DELETEs against it. An
+        // in-memory database fixes both: the repositories are actually wired,
+        // and no test can reach real data.
+        db = std::make_shared<SQLiteDatabase>(":memory:");
+        db->connect();
+        DeviceRepository::setDatabase(db);
+        AppsRepository::setDatabase(db);
 
         // Create test device
         Device device;
@@ -31,20 +36,13 @@ protected:
         device.ip_address = "192.168.1.200";
         device.api_key = "test_key";
         device.status = "online";
-        device.adb_enabled = false;
 
         DeviceRepository::getInstance().createDevice(device);
     }
 
     void TearDown() override {
         // Cleanup
-        try {
-            std::string cleanup_devices = "DELETE FROM fire_tv_devices WHERE device_id LIKE 'unittest_%'";
-            DatabaseService::getInstance().executeQuery(cleanup_devices);
-
-            std::string cleanup_apps = "DELETE FROM device_apps WHERE device_id LIKE 'unittest_%'";
-            DatabaseService::getInstance().executeQuery(cleanup_apps);
-        } catch (...) {}
+        // Nothing to clean up - the in-memory database dies with the test.
     }
 };
 

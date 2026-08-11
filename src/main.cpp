@@ -23,7 +23,9 @@
 #include "api/CommandController.h"
 #include "api/PairingController.h"
 #include "api/AppsController.h"
+#include "api/VoiceController.h"
 #include "services/DiscoveryService.h"
+#include "services/VoiceService.h"
 
 using namespace drogon;
 using namespace hms_firetv;
@@ -54,6 +56,13 @@ int main() {
         std::string mqtt_pass    = ConfigManager::getEnv("MQTT_PASS", "exploracion");
         std::string mqtt_addr    = "tcp://" + mqtt_broker + ":" + std::to_string(mqtt_port);
 
+        // Voice: text-to-speech for the Alexa channel. Configured on the
+        // server, never compiled in - leaving TTS_HOST unset just disables
+        // speaking text, and the audio/relay voice modes keep working.
+        std::string tts_host     = ConfigManager::getEnv("TTS_HOST", "");
+        int tts_port             = ConfigManager::getEnvInt("TTS_PORT", 10200);
+        std::string tts_voice    = ConfigManager::getEnv("TTS_VOICE", "");
+
         // Database config (SQLite by default; PostgreSQL if DB_HOST + DB_NAME set)
         AppConfig config;
         config.applyEnvFallbacks();
@@ -71,7 +80,13 @@ int main() {
             std::cout << "  DB host: " << config.database.host << ":" << config.database.port
                       << "/" << config.database.name << "\n";
         std::cout << "  MQTT: " << mqtt_addr << "\n";
+        std::cout << "  TTS: " << (tts_host.empty()
+                                       ? std::string("not configured (set TTS_HOST)")
+                                       : tts_host + ":" + std::to_string(tts_port))
+                  << "\n";
         std::cout << "--------------------------------------------------------------------------------\n";
+
+        VoiceService::getInstance().configureTts(tts_host, tts_port, tts_voice);
 
         // Create database backend
         std::cout << "Initializing services...\n";
@@ -142,6 +157,19 @@ int main() {
                                 }
                             });
 
+                        // Let an app sync refresh the HA app picker in place -
+                        // a select's options only change when its discovery
+                        // payload is republished.
+                        command_handler->setDiscoveryRepublish(
+                            [discovery_publisher](const std::string& device_id) {
+                                try {
+                                    auto d = DeviceRepository::getInstance().getDeviceById(device_id);
+                                    if (d.has_value()) discovery_publisher->publishDevice(*d);
+                                } catch (const std::exception& e) {
+                                    std::cerr << "[main] Discovery republish failed: " << e.what() << "\n";
+                                }
+                            });
+
                         mqtt_client->subscribeToAllCommands(
                             [command_handler](const std::string& device_id, const Json::Value& payload) {
                                 command_handler->handleCommand(device_id, payload);
@@ -182,6 +210,33 @@ int main() {
             .setClientMaxBodySize(10 * 1024 * 1024)
             .setDocumentRoot("./static")
             .setStaticFilesCacheTime(3600);
+
+        // Optional TLS listener.
+        //
+        // Needed for the live microphone relay: browsers only hand a
+        // microphone to a secure context, so the capture page and its
+        // WebSocket have to be https:// and wss://. A self-signed
+        // certificate is fine - the browser asks once and the page is then a
+        // secure context like any other.
+        //
+        // Unset API_SSL_PORT and the service is plain HTTP exactly as before.
+        int ssl_port = ConfigManager::getEnvInt("API_SSL_PORT", 0);
+        if (ssl_port > 0) {
+            std::string cert = ConfigManager::getEnv("API_SSL_CERT", "");
+            std::string key  = ConfigManager::getEnv("API_SSL_KEY", "");
+
+            if (cert.empty() || key.empty()) {
+                std::cerr << "  ⚠ API_SSL_PORT set but API_SSL_CERT / API_SSL_KEY are not"
+                             " — TLS listener not started\n";
+            } else if (!std::filesystem::exists(cert) || !std::filesystem::exists(key)) {
+                std::cerr << "  ⚠ TLS certificate or key missing (" << cert << ", " << key
+                          << ") — TLS listener not started\n";
+            } else {
+                app().addListener(api_host, ssl_port, true, cert, key);
+                std::cout << "  ✓ TLS listener on " << api_host << ":" << ssl_port
+                          << " (microphone relay needs this)\n";
+            }
+        }
 
         // SPA fallback
         std::string spa_fallback;

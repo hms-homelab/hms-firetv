@@ -77,6 +77,27 @@ private:
      */
     bool publishTextEntity(const Device& device);
 
+    /**
+     * Publish the app picker.
+     *
+     * A `select` entity whose options are the apps actually installed on the
+     * device, read from the database (AppSyncService fills it from the
+     * device's own appsV2 list). Without this, launching an app from Home
+     * Assistant meant knowing an Android package name.
+     *
+     * @return true if published, false if the device has no synced apps yet
+     */
+    bool publishAppSelect(const Device& device);
+
+    /**
+     * Publish the voice text entity.
+     *
+     * Typing here speaks the text to Alexa - the service synthesises it and
+     * streams the audio to the device, because the voice channel takes audio
+     * and never text.
+     */
+    bool publishVoiceEntity(const Device& device);
+
     // MQTT client reference
     MQTTClient& mqtt_client_;
 };
