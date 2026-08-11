@@ -66,3 +66,6 @@ hms-firetv
 *.rpm
 *.tar.gz
 *.zip
+
+# Rollback snapshot written by the dashboard push script on every deploy
+homeassistant/*.previous.json

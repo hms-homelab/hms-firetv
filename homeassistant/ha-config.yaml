@@ -1,0 +1,305 @@
+# Fire TV remote — Home Assistant side
+#
+# These entities live in Home Assistant, not in this service, so they are kept
+# here to be version controlled alongside the code they call. This file is a
+# valid Home Assistant package: drop it in /config/packages/ and enable
+# packages, or paste each section under the matching key in configuration.yaml
+# and scripts.yaml.
+#
+# NOT loaded from this repository, and the live instance currently has these
+# INLINE in configuration.yaml / scripts.yaml — do not add this as a package on
+# that instance as well or every key will be defined twice.
+#
+# Everything drives the hms-firetv REST API on 192.168.2.15:8888. MQTT still
+# works and the discovered entities still exist; REST is used because it
+# carries parameters a button entity cannot — a hold duration, a package name,
+# a phrase to speak — and it answers synchronously, so a failure surfaces
+# instead of vanishing into a topic.
+#
+# Every script resolves device_id by matching the selected name against
+# sensor.hms_firetv_devices, so adding a Fire TV needs no edit here.
+#
+# After changing any of this on the live instance: rest_command.reload,
+# script.reload, input_text.reload and rest.reload (or homeassistant.reload_all).
+
+rest_command:
+  # ── HMS-FireTV ───────────────────────────────────────────────────────────
+  # Direct calls to the hms-firetv REST API instead of MQTT. MQTT still works
+  # and the discovered entities still exist; REST is used here because it
+  # carries parameters a button entity cannot - a hold duration, a package
+  # name, a phrase to speak - and it answers synchronously so a failure is
+  # visible instead of vanishing into a topic.
+  # `device` is the hms-firetv device_id, resolved by script.fire_tv_send_command.
+
+  firetv_navigate:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/navigate"
+    method: POST
+    content_type: "application/json"
+    payload: '{"action": "{{ action }}"}'
+
+  firetv_media:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/media"
+    method: POST
+    content_type: "application/json"
+    payload: '{"action": "{{ action }}"}'
+
+  firetv_volume:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/volume"
+    method: POST
+    content_type: "application/json"
+    payload: '{"action": "{{ action }}"}'
+
+  # Press and hold: keyDown, wait, keyUp. This is what makes the device repeat
+  # a key, so one press scrolls a long list instead of moving one row.
+  firetv_hold:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/hold"
+    method: POST
+    content_type: "application/json"
+    payload: '{"action": "{{ action }}", "ms": {{ ms | default(1200) }}}'
+
+  firetv_launch_app:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/app"
+    method: POST
+    content_type: "application/json"
+    payload: '{"package": "{{ package }}"}'
+
+  firetv_send_text:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/text"
+    method: POST
+    content_type: "application/json"
+    payload: '{"text": {{ text | to_json }}}'
+
+  # Speak to Alexa. The device voice channel takes audio, never text, so the
+  # service synthesises this with Piper and streams it to the TV microphone.
+  firetv_voice_say:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/voice/say"
+    method: POST
+    content_type: "application/json"
+    payload: '{"text": {{ text | to_json }}}'
+    timeout: 60
+
+  firetv_voice_start:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/voice/start"
+    method: POST
+    timeout: 30
+
+  firetv_voice_stop:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/voice/stop"
+    method: POST
+    timeout: 30
+
+  # Re-read the installed app list off the device into the service database.
+  firetv_apps_sync:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/apps/sync"
+    method: POST
+    timeout: 90
+
+  firetv_command:
+    url: "http://192.168.2.15:8888/api/devices/{{ device }}/command"
+    method: POST
+    content_type: "application/json"
+    payload: '{"command": "{{ command }}"}'
+
+rest:
+  # Installed apps for the currently selected Fire TV. resource_template
+  # resolves the device_id from the same REST sensor the target selector is
+  # built from, so this follows the selector with no hardcoded devices.
+  - scan_interval: 120
+    resource_template: >-
+      {% set devices = state_attr('sensor.hms_firetv_devices', 'devices') or [] %}
+      {% set match = devices | selectattr('name', 'equalto', states('input_select.fire_tv_target')) | list %}
+      {% set device_id = (match | first).device_id if match else 'lr' %}
+      http://192.168.2.15:8888/api/devices/{{ device_id }}/apps
+    sensor:
+      - name: "Fire TV Apps"
+        unique_id: fire_tv_apps_for_target
+        value_template: "{{ value_json.count }}"
+        json_attributes:
+          - apps
+
+input_text:
+  # Fire TV keyboard input (dynamic, works with any selected device)
+  fire_tv_keyboard:
+    name: "Fire TV Keyboard"
+    icon: mdi:keyboard
+    max: 255
+    initial: ""
+  # Phrase spoken to Alexa on the selected Fire TV (synthesised by Piper)
+  fire_tv_voice:
+    name: "Fire TV Voice Command"
+    icon: mdi:microphone-message
+    max: 255
+    initial: ""
+
+script:
+  fire_tv_send_command:
+    alias: Fire TV Send Command
+    description: >-
+      Send a command to the selected Fire TV over the hms-firetv REST API.
+      REST rather than MQTT because it carries parameters a button entity
+      cannot (hold duration, package, phrase) and reports failure synchronously
+      instead of dropping it into a topic. The device_id is resolved by name
+      from sensor.hms_firetv_devices, so adding a device needs no edit here.
+    fields:
+      command:
+        description: Command to send
+        example: home
+      ms:
+        description: Hold duration in milliseconds, for hold_* commands
+        example: 1200
+    sequence:
+    - variables:
+        nav_actions:
+          home: home
+          back: back
+          menu: menu
+          up: dpad_up
+          down: dpad_down
+          left: dpad_left
+          right: dpad_right
+          select: select
+        hold_actions:
+          hold_up: dpad_up
+          hold_down: dpad_down
+          hold_left: dpad_left
+          hold_right: dpad_right
+        media_actions:
+          play: play
+          pause: pause
+        volume_actions:
+          volume_up: volume_up
+          volume_down: volume_down
+          mute: mute
+        power_commands:
+          wake: turn_on
+          sleep: turn_off
+        device_id: >-
+          {% set devices = state_attr('sensor.hms_firetv_devices', 'devices') or [] %}
+          {% set match = devices | selectattr('name', 'equalto', states('input_select.fire_tv_target')) | list %}
+          {{ (match | first).device_id if match else '' }}
+    - condition: template
+      value_template: "{{ device_id != '' }}"
+    - choose:
+      - conditions: "{{ command in nav_actions }}"
+        sequence:
+        - action: rest_command.firetv_navigate
+          data:
+            device: "{{ device_id }}"
+            action: "{{ nav_actions[command] }}"
+      - conditions: "{{ command in hold_actions }}"
+        sequence:
+        - action: rest_command.firetv_hold
+          data:
+            device: "{{ device_id }}"
+            action: "{{ hold_actions[command] }}"
+            ms: "{{ ms | default(1200) }}"
+      - conditions: "{{ command in media_actions }}"
+        sequence:
+        - action: rest_command.firetv_media
+          data:
+            device: "{{ device_id }}"
+            action: "{{ media_actions[command] }}"
+      - conditions: "{{ command in volume_actions }}"
+        sequence:
+        - action: rest_command.firetv_volume
+          data:
+            device: "{{ device_id }}"
+            action: "{{ volume_actions[command] }}"
+      - conditions: "{{ command in power_commands }}"
+        sequence:
+        - action: rest_command.firetv_command
+          data:
+            device: "{{ device_id }}"
+            command: "{{ power_commands[command] }}"
+      - conditions: "{{ command == 'voice_start' }}"
+        sequence:
+        - action: rest_command.firetv_voice_start
+          data:
+            device: "{{ device_id }}"
+      - conditions: "{{ command == 'voice_stop' }}"
+        sequence:
+        - action: rest_command.firetv_voice_stop
+          data:
+            device: "{{ device_id }}"
+      - conditions: "{{ command == 'apps_sync' }}"
+        sequence:
+        - action: rest_command.firetv_apps_sync
+          data:
+            device: "{{ device_id }}"
+        - delay: "00:00:03"
+        - action: homeassistant.update_entity
+          target:
+            entity_id: sensor.fire_tv_apps
+    mode: parallel
+    max: 10
+
+  fire_tv_launch_package:
+    alias: Fire TV - Launch Package
+    description: >-
+      Launch an app on the selected Fire TV by Android package name. The app
+      grid on the dashboard is built from the device's own installed list
+      (sensor.fire_tv_apps), so it passes the package straight through.
+    fields:
+      package:
+        description: Android package name
+        example: com.netflix.ninja
+    sequence:
+    - variables:
+        device_id: >-
+          {% set devices = state_attr('sensor.hms_firetv_devices', 'devices') or [] %}
+          {% set match = devices | selectattr('name', 'equalto', states('input_select.fire_tv_target')) | list %}
+          {{ (match | first).device_id if match else '' }}
+    - condition: template
+      value_template: "{{ device_id != '' }}"
+    - action: rest_command.firetv_launch_app
+      data:
+        device: "{{ device_id }}"
+        package: "{{ package }}"
+    mode: parallel
+    max: 10
+
+  fire_tv_speak:
+    alias: Fire TV - Speak to Alexa
+    description: >-
+      Say something to Alexa on the selected Fire TV. The voice channel carries
+      audio and never text, so hms-firetv synthesises the phrase with Piper and
+      streams it into the device microphone.
+    fields:
+      text:
+        description: What to say. Defaults to input_text.fire_tv_voice.
+        example: play Stranger Things
+    sequence:
+    - variables:
+        phrase: "{{ text | default(states('input_text.fire_tv_voice'), true) }}"
+        device_id: >-
+          {% set devices = state_attr('sensor.hms_firetv_devices', 'devices') or [] %}
+          {% set match = devices | selectattr('name', 'equalto', states('input_select.fire_tv_target')) | list %}
+          {{ (match | first).device_id if match else '' }}
+    - condition: template
+      value_template: "{{ device_id != '' and phrase | trim != '' }}"
+    - action: rest_command.firetv_voice_say
+      data:
+        device: "{{ device_id }}"
+        text: "{{ phrase }}"
+    mode: single
+
+  fire_tv_type_text:
+    alias: Fire TV - Send Keyboard Text
+    description: Type into a Fire TV search field on the selected device.
+    fields:
+      text:
+        description: Text to type. Defaults to input_text.fire_tv_keyboard.
+    sequence:
+    - variables:
+        phrase: "{{ text | default(states('input_text.fire_tv_keyboard'), true) }}"
+        device_id: >-
+          {% set devices = state_attr('sensor.hms_firetv_devices', 'devices') or [] %}
+          {% set match = devices | selectattr('name', 'equalto', states('input_select.fire_tv_target')) | list %}
+          {{ (match | first).device_id if match else '' }}
+    - condition: template
+      value_template: "{{ device_id != '' and phrase | trim != '' }}"
+    - action: rest_command.firetv_send_text
+      data:
+        device: "{{ device_id }}"
+        text: "{{ phrase }}"
+    mode: single
