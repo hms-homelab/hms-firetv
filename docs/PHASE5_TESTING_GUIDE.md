@@ -163,7 +163,7 @@ curl http://localhost:8888/health | jq
 ### 2. MQTT Discovery Verification
 
 ```bash
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "homeassistant/media_player/+/config" -v
 ```
 
@@ -192,21 +192,21 @@ homeassistant/media_player/livingroom_colada/config {
 
 **Volume Up:**
 ```bash
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "volume_up"}'
 ```
 
 **Volume Down:**
 ```bash
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "volume_down"}'
 ```
 
 **Navigation - Home:**
 ```bash
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "navigate", "action": "home"}'
 ```
@@ -214,17 +214,17 @@ mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
 **Navigation - D-Pad:**
 ```bash
 # Up
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "navigate", "direction": "up"}'
 
 # Down
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "navigate", "direction": "down"}'
 
 # Select
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "navigate", "action": "select"}'
 ```
@@ -232,17 +232,17 @@ mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
 **Media Control:**
 ```bash
 # Play/Pause
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "media_play_pause"}'
 
 # Play
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "media_play"}'
 
 # Pause
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "media_pause"}'
 ```
@@ -250,17 +250,17 @@ mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
 **App Launch:**
 ```bash
 # Netflix
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "launch_app", "package": "com.netflix.ninja"}'
 
 # Prime Video
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "launch_app", "package": "com.amazon.avod.thirdpartyclient"}'
 
 # YouTube
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "launch_app", "package": "com.google.android.youtube.tv"}'
 ```
@@ -268,7 +268,7 @@ mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
 **App Launch by Name:**
 ```bash
 # Using friendly name
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "select_source", "source": "Netflix"}'
 ```
@@ -276,12 +276,12 @@ mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
 **Power Control:**
 ```bash
 # Turn on (wake from standby)
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "turn_on"}'
 
 # Turn off (enter standby)
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "turn_off"}'
 ```
@@ -349,7 +349,7 @@ psql -h 192.168.2.15 -U firetv_user -d firetv -c "SELECT 1;"
 docker logs -f emqx | tail -20
 
 # Test MQTT connection
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "test/topic" -m "test"
 ```
 
@@ -365,7 +365,7 @@ cd /home/aamat/maestro_hub/hms-firetv/build
 **Check MQTT Traffic:**
 ```bash
 # Monitor all topics
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion -t '#' -v
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) -t '#' -v
 ```
 
 ### Devices Not in Home Assistant
@@ -376,7 +376,7 @@ mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion -t '#' -v
 
 **Check Discovery Messages:**
 ```bash
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "homeassistant/#" -v
 ```
 

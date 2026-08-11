@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.2] - 2026-08-11
+
+### Security
+- Credentials removed from the source. The repository is public and carried
+  the MQTT password as a compile-time default in `main.cpp` plus both
+  PostgreSQL passwords across the tests, docs and `run_service.sh`. All of it
+  now comes from the environment. The values remain in the git history, so
+  they need rotating to be considered safe.
+
 ## [1.1.1] - 2026-08-11
 
 ### Fixed

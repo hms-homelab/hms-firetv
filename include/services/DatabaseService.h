@@ -47,7 +47,7 @@ namespace hms_firetv {
  * Database: firetv
  * Main Table: fire_tv_devices
  * User: maestro
- * Password: maestro_postgres_2026_secure
+ * Password: $(DB_PASSWORD)
  */
 class DatabaseService {
 public:

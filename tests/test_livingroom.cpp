@@ -4,6 +4,17 @@
 #include "services/DatabaseService.h"
 #include "repositories/DeviceRepository.h"
 #include "clients/LightningClient.h"
+#include <cstdlib>
+
+namespace {
+/** Credentials come from the environment; nothing is baked into the source.
+ *  Set DB_PASSWORD / MQTT_PASS to point these tests at a live instance. */
+inline const char* envOr(const char* name, const char* fallback) {
+    const char* v = std::getenv(name);
+    return (v && *v) ? v : fallback;
+}
+}  // namespace
+
 
 using namespace hms_firetv;
 
@@ -15,7 +26,7 @@ int main() {
         // Connect to database
         DatabaseService::getInstance().initialize(
             "192.168.2.15", 5432, "firetv",
-            "firetv_user", "firetv_postgres_2026_secure"
+            "firetv_user", envOr("DB_PASSWORD", "")
         );
 
         // Get living room device

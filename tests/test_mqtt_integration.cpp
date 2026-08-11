@@ -7,6 +7,17 @@
 #include <thread>
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
+
+namespace {
+/** Credentials come from the environment; nothing is baked into the source.
+ *  Set DB_PASSWORD / MQTT_PASS to point these tests at a live instance. */
+inline const char* envOr(const char* name, const char* fallback) {
+    const char* v = std::getenv(name);
+    return (v && *v) ? v : fallback;
+}
+}  // namespace
+
 
 using namespace hms_firetv;
 
@@ -39,13 +50,13 @@ int main() {
     // Test configuration
     std::string mqtt_broker = "tcp://192.168.2.15:1883";
     std::string mqtt_user = "aamat";
-    std::string mqtt_password = "exploracion";
+    std::string mqtt_password = envOr("MQTT_PASS", "");
 
     std::string db_host = "192.168.2.15";
     int db_port = 5432;
     std::string db_name = "firetv";
     std::string db_user = "firetv_user";
-    std::string db_password = "firetv_postgres_2026_secure";
+    std::string db_password = envOr("DB_PASSWORD", "");
 
     std::cout << "Configuration:\n";
     std::cout << "  MQTT Broker: " << mqtt_broker << "\n";
@@ -187,32 +198,32 @@ int main() {
     std::cout << "To test commands, open another terminal and run:\n\n";
 
     std::cout << "# Test volume up:\n";
-    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \\\n";
+    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \\\n";
     std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"volume_up\"}'\n\n";
 
     std::cout << "# Test volume down:\n";
-    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \\\n";
+    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \\\n";
     std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"volume_down\"}'\n\n";
 
     std::cout << "# Test navigation:\n";
-    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \\\n";
+    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \\\n";
     std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"navigate\", \"action\": \"home\"}'\n\n";
 
     std::cout << "# Test media play:\n";
-    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \\\n";
+    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \\\n";
     std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"media_play_pause\"}'\n\n";
 
     std::cout << "# Test app launch:\n";
-    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \\\n";
+    std::cout << "mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \\\n";
     std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"launch_app\", \"package\": \"com.netflix.ninja\"}'\n\n";
 
     std::cout << "# Monitor state changes:\n";
-    std::cout << "mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \\\n";
+    std::cout << "mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \\\n";
     std::cout << "  -t \"maestro_hub/firetv/#\" -v\n\n";
 
     // ========================================================================

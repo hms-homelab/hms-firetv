@@ -40,7 +40,7 @@ int main() {
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "================================================================================\n";
-    std::cout << "Starting HMS FireTV v1.0.7\n";
+    std::cout << "Starting HMS FireTV v1.1.2\n";
     std::cout << "================================================================================\n";
 
     try {
@@ -53,7 +53,7 @@ int main() {
         std::string mqtt_broker  = ConfigManager::getEnv("MQTT_BROKER_HOST", "192.168.2.15");
         int mqtt_port            = ConfigManager::getEnvInt("MQTT_BROKER_PORT", 1883);
         std::string mqtt_user    = ConfigManager::getEnv("MQTT_USER", "aamat");
-        std::string mqtt_pass    = ConfigManager::getEnv("MQTT_PASS", "exploracion");
+        std::string mqtt_pass    = ConfigManager::getEnv("MQTT_PASS", "");
         std::string mqtt_addr    = "tcp://" + mqtt_broker + ":" + std::to_string(mqtt_port);
 
         // Voice: text-to-speech for the Alexa channel. Configured on the

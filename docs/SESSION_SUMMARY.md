@@ -381,14 +381,14 @@ DB_HOST=192.168.2.15 \
 DB_PORT=5432 \
 DB_NAME=firetv \
 DB_USER=firetv_user \
-DB_PASSWORD=firetv_postgres_2026_secure \
+DB_PASSWORD=$(DB_PASSWORD) \
 API_PORT=9888 \
 ./hms_firetv
 ```
 
 ### Database Access
 ```bash
-PGPASSWORD=firetv_postgres_2026_secure psql \
+PGPASSWORD=$(DB_PASSWORD) psql \
   -h 192.168.2.15 \
   -U firetv_user \
   -d firetv

@@ -63,7 +63,7 @@ Phase 2 has successfully implemented the complete database layer for HMS FireTV,
     - `DB_PORT` (default: 5432)
     - `DB_NAME` (default: firetv)
     - `DB_USER` (default: firetv_user)
-    - `DB_PASSWORD` (default: firetv_postgres_2026_secure)
+    - `DB_PASSWORD` (default: $(DB_PASSWORD))
   - Updated `/health` endpoint to show database connection status
   - Returns HTTP 503 if database disconnected, 200 if healthy
   - Graceful error handling on initialization failure
@@ -149,7 +149,7 @@ WHERE device_id = 'test_cpp_device';
 ## Database Schema
 
 **Database**: firetv @ 192.168.2.15:5432
-**User**: firetv_user / Password: firetv_postgres_2026_secure
+**User**: firetv_user / Password: $(DB_PASSWORD)
 
 **Table**: fire_tv_devices
 ```sql
@@ -273,7 +273,7 @@ cmake .. && make -j$(nproc)
 
 # Run service
 DB_HOST=192.168.2.15 DB_PORT=5432 DB_NAME=firetv \
-DB_USER=firetv_user DB_PASSWORD=firetv_postgres_2026_secure \
+DB_USER=firetv_user DB_PASSWORD=$(DB_PASSWORD) \
 API_PORT=9888 ./hms_firetv
 
 # Check health
@@ -289,7 +289,7 @@ g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
 ./test_device_repo
 
 # Verify in database
-PGPASSWORD=firetv_postgres_2026_secure psql -h 192.168.2.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.2.15 \
   -U firetv_user -d firetv -c "SELECT * FROM fire_tv_devices;"
 ```
 

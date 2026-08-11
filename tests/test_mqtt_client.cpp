@@ -5,6 +5,17 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <cstdlib>
+
+namespace {
+/** Credentials come from the environment; nothing is baked into the source.
+ *  Set DB_PASSWORD / MQTT_PASS to point these tests at a live instance. */
+inline const char* envOr(const char* name, const char* fallback) {
+    const char* v = std::getenv(name);
+    return (v && *v) ? v : fallback;
+}
+}  // namespace
+
 
 using namespace hms_firetv;
 
@@ -20,7 +31,7 @@ protected:
     void SetUp() override {
         try {
             DatabaseService::getInstance().initialize(
-                "192.168.2.15", 5432, "firetv", "firetv_user", "firetv_postgres_2026_secure"
+                "192.168.2.15", 5432, "firetv", "firetv_user", envOr("DB_PASSWORD", "")
             );
         } catch (const std::exception& e) {
             std::cerr << "Database init failed: " << e.what() << std::endl;
@@ -48,7 +59,7 @@ protected:
 TEST_F(MQTTClientTest, Connect_Succeeds) {
     bool connected = mqtt_client->connect(
         "tcp://192.168.2.15:1883",
-        "aamat", "exploracion"
+        "aamat", envOr("MQTT_PASS", "")
     );
 
     EXPECT_TRUE(connected) << "Should connect to MQTT broker";
@@ -85,7 +96,7 @@ TEST_F(MQTTClientTest, Connect_WithInvalidCredentials_BrokerDependent) {
 TEST_F(MQTTClientTest, Publish_IsNonBlocking) {
     bool connected = mqtt_client->connect(
         "tcp://192.168.2.15:1883",
-        "aamat", "exploracion"
+        "aamat", envOr("MQTT_PASS", "")
     );
     ASSERT_TRUE(connected);
 
@@ -109,7 +120,7 @@ TEST_F(MQTTClientTest, Publish_IsNonBlocking) {
 TEST_F(MQTTClientTest, MultiplePublishes_DontBlock) {
     bool connected = mqtt_client->connect(
         "tcp://192.168.2.15:1883",
-        "aamat", "exploracion"
+        "aamat", envOr("MQTT_PASS", "")
     );
     ASSERT_TRUE(connected);
 
@@ -140,7 +151,7 @@ TEST_F(MQTTClientTest, MultiplePublishes_DontBlock) {
 TEST_F(MQTTClientTest, PublishFromCallback_DoesNotDeadlock) {
     bool connected = mqtt_client->connect(
         "tcp://192.168.2.15:1883",
-        "aamat", "exploracion"
+        "aamat", envOr("MQTT_PASS", "")
     );
     ASSERT_TRUE(connected);
 
@@ -178,7 +189,7 @@ TEST_F(MQTTClientTest, PublishFromCallback_DoesNotDeadlock) {
 TEST_F(MQTTClientTest, Subscribe_Succeeds) {
     bool connected = mqtt_client->connect(
         "tcp://192.168.2.15:1883",
-        "aamat", "exploracion"
+        "aamat", envOr("MQTT_PASS", "")
     );
     ASSERT_TRUE(connected);
 

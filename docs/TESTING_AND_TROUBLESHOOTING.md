@@ -23,12 +23,12 @@
 cd /home/aamat/maestro_hub/hms-firetv/build
 
 # Test 1: Database Connection
-PGPASSWORD=firetv_postgres_2026_secure psql -h 192.168.2.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.2.15 \
   -U firetv_user -d firetv -c "SELECT COUNT(*) FROM fire_tv_devices;"
 # Expected: Number of devices (e.g., "4")
 
 # Test 2: Device Status
-PGPASSWORD=firetv_postgres_2026_secure psql -h 192.168.2.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.2.15 \
   -U firetv_user -d firetv -c "SELECT device_id, name, ip_address, status FROM fire_tv_devices;"
 # Expected: List of devices with status
 
@@ -445,7 +445,7 @@ Error: could not connect to server
 sudo systemctl status postgresql
 
 # Test 2: Can you connect manually?
-PGPASSWORD=firetv_postgres_2026_secure psql -h 192.168.2.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.2.15 \
   -U firetv_user -d firetv
 
 # Test 3: Check pg_hba.conf
@@ -671,7 +671,7 @@ sudo apt-get install -y \
 ```sql
 -- As postgres superuser
 CREATE DATABASE firetv;
-CREATE USER firetv_user WITH PASSWORD 'firetv_postgres_2026_secure';
+CREATE USER firetv_user WITH PASSWORD '$(DB_PASSWORD)';
 GRANT ALL PRIVILEGES ON DATABASE firetv TO firetv_user;
 ```
 
@@ -752,7 +752,7 @@ if (!token.empty()) {
 **4. Verification**:
 ```bash
 # Check token in database
-PGPASSWORD=firetv_postgres_2026_secure psql -h 192.168.2.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.2.15 \
   -U firetv_user -d firetv \
   -c "SELECT device_id, client_token FROM fire_tv_devices WHERE device_id = 'livingroom_colada';"
 

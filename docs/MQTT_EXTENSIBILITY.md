@@ -122,7 +122,7 @@ def on_doorbell_ring():
 
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/#" -v
 
 # Output:
@@ -221,7 +221,7 @@ homeassistant/media_player/{device_id}/config
 ## Security Considerations
 
 ### Current Setup
-- MQTT broker requires authentication (aamat/exploracion)
+- MQTT broker requires authentication (aamat/$(MQTT_PASS))
 - No encryption (local network only)
 - No ACLs (all users can publish/subscribe to all topics)
 
@@ -274,7 +274,7 @@ All services communicate via MQTT - no direct coupling!
 ### Setup
 ```bash
 # Terminal 1: Monitor all traffic
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/#" -v
 
 # Terminal 2: HMS FireTV service
@@ -282,12 +282,12 @@ cd /home/aamat/maestro_hub/hms-firetv/build
 ./hms_firetv
 
 # Terminal 3: Simulate Home Assistant
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "volume_up"}'
 
 # Terminal 4: Simulate N8N workflow
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "turn_on"}'
 ```

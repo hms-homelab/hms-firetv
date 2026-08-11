@@ -233,7 +233,7 @@ private:
 **Current Setup**:
 - **Broker**: Native EMQX at 192.168.2.15:1883
 - **Username**: aamat
-- **Password**: exploracion
+- **Password**: $(MQTT_PASS)
 - **QoS**: 1 (at least once delivery)
 - **Retain**: Yes for discovery/availability, No for commands
 
@@ -243,7 +243,7 @@ mqtt::connect_options connOpts;
 connOpts.set_keep_alive_interval(20);
 connOpts.set_clean_session(true);
 connOpts.set_user_name("aamat");
-connOpts.set_password("exploracion");
+connOpts.set_password("$(MQTT_PASS)");
 ```
 
 ## Command Routing Matrix
@@ -316,13 +316,13 @@ void updateDeviceState(const std::string& device_id, DeviceState state) {
 
 **1. Subscribe to state updates**:
 ```bash
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/state" -v
 ```
 
 **2. Send volume up command**:
 ```bash
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "maestro_hub/firetv/livingroom_colada/set" \
   -m '{"command": "volume_up"}'
 ```
@@ -336,7 +336,7 @@ mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
 
 **1. Publish discovery message**:
 ```bash
-mosquitto_pub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_pub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "homeassistant/media_player/livingroom_colada/config" \
   -m '{
     "name": "Living Room Fire TV",
@@ -394,7 +394,7 @@ sudo systemctl status emqx
 **Check 2: Topic subscription**:
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion -t '#' -v
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) -t '#' -v
 ```
 
 **Check 3: Service connected**:
@@ -408,7 +408,7 @@ mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion -t '#' -v
 
 **Check 1: Discovery message published**:
 ```bash
-mosquitto_sub -h 192.168.2.15 -u aamat -P exploracion \
+mosquitto_sub -h 192.168.2.15 -u aamat -P $(MQTT_PASS) \
   -t "homeassistant/media_player/+/config" -v
 ```
 

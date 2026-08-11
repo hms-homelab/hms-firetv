@@ -175,7 +175,7 @@ Dependencies:
    - Add DB_* environment variables
    - Connect to existing `firetv` database on 192.168.2.15:5432
    - User: `firetv_user`
-   - Password: `firetv_postgres_2026_secure`
+   - Password: `$(DB_PASSWORD)`
 
 5. **Update Health Endpoint**
    - Add database connection status to `/health`

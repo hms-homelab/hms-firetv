@@ -319,13 +319,13 @@ DB_HOST=192.168.2.15
 DB_PORT=5432
 DB_NAME=firetv
 DB_USER=firetv_user
-DB_PASSWORD=firetv_postgres_2026_secure
+DB_PASSWORD=$(DB_PASSWORD)
 
 # MQTT
 MQTT_BROKER_HOST=192.168.2.15
 MQTT_BROKER_PORT=1883
 MQTT_USER=aamat
-MQTT_PASS=exploracion
+MQTT_PASS=$(MQTT_PASS)
 
 # API
 API_HOST=0.0.0.0
@@ -339,7 +339,7 @@ LOG_LEVEL=info
 **EMQX Configuration:**
 - Host: 192.168.2.15
 - Port: 1883 (native)
-- Auth: username/password (aamat/exploracion)
+- Auth: username/password (aamat/$(MQTT_PASS))
 - QoS: 1 (at least once)
 - Retain: Yes (for discovery/availability)
 

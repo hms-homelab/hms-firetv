@@ -4,7 +4,7 @@
 
 BROKER="192.168.2.15"
 USER="aamat"
-PASS="exploracion"
+PASS="${MQTT_PASS}"
 DEVICE_ID="livingroom_colada"
 
 echo "============================================================================"

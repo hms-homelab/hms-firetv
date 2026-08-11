@@ -3,6 +3,17 @@
 #include "repositories/DeviceRepository.h"
 #include "services/DatabaseService.h"
 #include <drogon/drogon.h>
+#include <cstdlib>
+
+namespace {
+/** Credentials come from the environment; nothing is baked into the source.
+ *  Set DB_PASSWORD / MQTT_PASS to point these tests at a live instance. */
+inline const char* envOr(const char* name, const char* fallback) {
+    const char* v = std::getenv(name);
+    return (v && *v) ? v : fallback;
+}
+}  // namespace
+
 
 using namespace hms_firetv;
 using namespace drogon;
@@ -14,11 +25,11 @@ protected:
     void SetUp() override {
         try {
             DatabaseService::getInstance().initialize(
-                "localhost", 5432, "firetv_test", "maestro", "maestro_postgres_2026_secure"
+                "localhost", 5432, "firetv_test", "maestro", envOr("DB_PASSWORD", "")
             );
         } catch (...) {
             DatabaseService::getInstance().initialize(
-                "192.168.2.15", 5432, "firetv", "maestro", "maestro_postgres_2026_secure"
+                "192.168.2.15", 5432, "firetv", "maestro", envOr("DB_PASSWORD", "")
             );
         }
 
