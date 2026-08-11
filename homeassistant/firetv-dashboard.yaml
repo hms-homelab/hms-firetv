@@ -245,6 +245,33 @@ button_card_templates:
         - color: "#8ADAF2"
         - font-weight: 600
 
+  # The centre key. The ring around it is part of the disc image, so this
+  # carries only the label and the press.
+  ftv_ok_flat:
+    color_type: card
+    show_icon: false
+    show_name: true
+    name: OK
+    styles:
+      card:
+        - background: transparent
+        - border: none
+        - box-shadow: none
+        - border-radius: 50%
+        - width: 104px
+        - height: 104px
+      name:
+        - font-size: 13px
+        - font-weight: 600
+        - letter-spacing: 0.18em
+        - color: "#D9E9F4"
+    extra_styles: |
+      ha-card { transition: transform .1s ease, filter .1s ease; }
+      ha-card:active {
+        transform: scale(0.93);
+        filter: brightness(1.6) drop-shadow(0 0 16px rgba(79,195,232,0.75));
+      }
+
 views:
   # Split into three views rather than one long column: on a phone the pad has
   # to sit under the thumb without scrolling, and 25 app tiles below it pushed
@@ -276,96 +303,87 @@ views:
                 service_data: { entity_id: 'input_select.fire_tv_target', option: d.name } } }; })}
 
           # ── the pad ─────────────────────────────────────────────────────
-          # One machined disc holding all five keys, rather than five separate
-          # buttons floating in a column. The disc is drawn on the stack's own
-          # container and the keys inside it are transparent.
-          - type: vertical-stack
+          # One machined disc with the keys sitting on it.
+          #
+          # Drawn as a picture-elements card over an inline SVG rather than by
+          # styling a stack's container with card-mod. card-mod patches cards
+          # asynchronously and loses the race often enough that the disc would
+          # sometimes render flat, with the keys left-aligned - and the pad is
+          # the one element that cannot afford to be unreliable. This is plain
+          # Home Assistant: the disc is the image, the keys are positioned on
+          # it, and it scales with the card.
+          - type: picture-elements
             card_mod:
               style: |
-                #root {
-                  width: 272px;
-                  height: 272px;
-                  margin: 16px auto 6px;
-                  border-radius: 50%;
-                  background:
-                    radial-gradient(circle at 50% 36%, #242D3C 0%, #171E29 58%, #0F141C 100%);
-                  box-shadow:
-                    inset 0 1px 0 rgba(255,255,255,0.08),
-                    inset 0 0 0 1px rgba(255,255,255,0.03),
-                    0 18px 40px -18px #000;
-                  display: flex;
-                  flex-direction: column;
-                  justify-content: center;
-                }
-                /* stack children bring their own spacing, which would push the
-                   keys off the disc */
-                #root > * { margin: 0 !important; }
-            cards:
-              - type: horizontal-stack
-                card_mod:
-                  style: |
-                    #root { justify-content: center; }
-                cards:
-                  - type: custom:button-card
-                    template: ftv_pad_flat
-                    icon: mdi:chevron-up
-                    tap_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: up }
-                    hold_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: hold_up }
-              - type: horizontal-stack
-                card_mod:
-                  style: |
-                    #root { justify-content: center; gap: 18px; align-items: center; }
-                cards:
-                  - type: custom:button-card
-                    template: ftv_pad_flat
-                    icon: mdi:chevron-left
-                    tap_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: left }
-                    hold_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: hold_left }
-                  - type: custom:button-card
-                    template: ftv_ok_ring
-                    tap_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: select }
-                  - type: custom:button-card
-                    template: ftv_pad_flat
-                    icon: mdi:chevron-right
-                    tap_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: right }
-                    hold_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: hold_right }
-              - type: horizontal-stack
-                card_mod:
-                  style: |
-                    #root { justify-content: center; }
-                cards:
-                  - type: custom:button-card
-                    template: ftv_pad_flat
-                    icon: mdi:chevron-down
-                    tap_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: down }
-                    hold_action:
-                      action: call-service
-                      service: script.fire_tv_send_command
-                      service_data: { command: hold_down }
+                ha-card { background: transparent; box-shadow: none; border: none; }
+            image: >-
+              data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgNDAwIiB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCI+CjxkZWZzPgo8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxMzFBMjQiLz4KPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMEUxNDFDIi8+CjwvbGluZWFyR3JhZGllbnQ+CjxyYWRpYWxHcmFkaWVudCBpZD0iZGlzYyIgY3g9IjUwJSIgY3k9IjMwJSIgcj0iNzglIj4KPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzJFMzk0OSIvPgo8c3RvcCBvZmZzZXQ9IjU1JSIgc3RvcC1jb2xvcj0iIzFCMjMzMCIvPgo8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMxMDE3MjAiLz4KPC9yYWRpYWxHcmFkaWVudD4KPHJhZGlhbEdyYWRpZW50IGlkPSJodWIiIGN4PSI1MCUiIGN5PSIzOCUiIHI9IjYyJSI+CjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmZmZmZmYiIHN0b3Atb3BhY2l0eT0iMC4wNyIvPgo8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmZmZmZmYiIHN0b3Atb3BhY2l0eT0iMC4wMTIiLz4KPC9yYWRpYWxHcmFkaWVudD4KPGZpbHRlciBpZD0iZHJvcCIgeD0iLTI1JSIgeT0iLTI1JSIgd2lkdGg9IjE1MCUiIGhlaWdodD0iMTUwJSI+CjxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIxMCIgc3RkRGV2aWF0aW9uPSIxNCIgZmxvb2QtY29sb3I9IiMwMDAwMDAiIGZsb29kLW9wYWNpdHk9IjAuNjUiLz4KPC9maWx0ZXI+CjwvZGVmcz4KPHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9InVybCgjYmcpIi8+CjxnIGZpbHRlcj0idXJsKCNkcm9wKSI+CjxjaXJjbGUgY3g9IjIwMCIgY3k9IjIwMCIgcj0iMTkwIiBmaWxsPSJ1cmwoI2Rpc2MpIi8+CjwvZz4KPCEtLSB0b3AgaGlnaGxpZ2h0LCBzbyB0aGUgZGlzYyByZWFkcyBhcyBhIHJhaXNlZCBtYWNoaW5lZCBmYWNlIC0tPgo8Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjE4OSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utb3BhY2l0eT0iMC4xMCIKICAgICAgICBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWRhc2hhcnJheT0iMzYwIDgzMCIgc3Ryb2tlLWRhc2hvZmZzZXQ9Ii00MjAiLz4KPGNpcmNsZSBjeD0iMjAwIiBjeT0iMjAwIiByPSIxODkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzAwMDAwMCIgc3Ryb2tlLW9wYWNpdHk9IjAuMzUiIHN0cm9rZS13aWR0aD0iMSIvPgo8Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjgwIiBmaWxsPSJ1cmwoI2h1YikiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLW9wYWNpdHk9IjAuMTEiIHN0cm9rZS13aWR0aD0iMS41Ii8+Cjwvc3ZnPg==
+            elements:
+              - type: custom:button-card
+                template: ftv_pad_flat
+                icon: mdi:chevron-up
+                style:
+                  top: 13%
+                  left: 50%
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: up }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_up }
+              - type: custom:button-card
+                template: ftv_pad_flat
+                icon: mdi:chevron-left
+                style:
+                  top: 50%
+                  left: 13%
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: left }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_left }
+              - type: custom:button-card
+                template: ftv_ok_flat
+                style:
+                  top: 50%
+                  left: 50%
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: select }
+              - type: custom:button-card
+                template: ftv_pad_flat
+                icon: mdi:chevron-right
+                style:
+                  top: 50%
+                  left: 87%
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: right }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_right }
+              - type: custom:button-card
+                template: ftv_pad_flat
+                icon: mdi:chevron-down
+                style:
+                  top: 87%
+                  left: 50%
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: down }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_down }
 
           # ── system row ──────────────────────────────────────────────────
           - type: horizontal-stack
@@ -522,21 +540,36 @@ views:
             title: Say to Alexa
             show_header_toggle: false
             card_mod:
-              style: |
-                ha-card {
-                  background: rgba(255,255,255,0.05);
-                  border: none;
-                  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-                  color: #CFE6F2;
-                  --primary-text-color: #E3EDF5;
-                  --secondary-text-color: #93A1B0;
-                  --paper-item-icon-color: #8ADAF2;
-                }
-                .card-header {
-                  color: #CFE6F2 !important;
-                  font-size: 15px;
-                  font-weight: 600;
-                }
+              # The field is a Web Awesome <wa-input>, not an ha-textfield.
+              # It exposes part="base", and a part is styleable from outside
+              # its shadow root, so the rule only has to reach <ha-input> —
+              # with !important, because the component styles the same box
+              # with a class selector that outranks an outside ::part() rule.
+              style:
+                hui-input-text-entity-row:
+                  $:
+                    ha-input:
+                      $: |
+                        wa-input::part(base) {
+                          background: rgba(255,255,255,0.06) !important;
+                          border-color: rgba(255,255,255,0.12) !important;
+                        }
+                        wa-input::part(input) { color: #E3EDF5 !important; }
+                .: |
+                  ha-card {
+                    background: rgba(255,255,255,0.05);
+                    border: none;
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+                    color: #CFE6F2;
+                    --primary-text-color: #E3EDF5;
+                    --secondary-text-color: #93A1B0;
+                    --paper-item-icon-color: #8ADAF2;
+                  }
+                  .card-header {
+                    color: #CFE6F2 !important;
+                    font-size: 15px;
+                    font-weight: 600;
+                  }
             entities:
               - entity: input_text.fire_tv_voice
                 name: Phrase
@@ -569,21 +602,36 @@ views:
             title: Keyboard
             show_header_toggle: false
             card_mod:
-              style: |
-                ha-card {
-                  background: rgba(255,255,255,0.05);
-                  border: none;
-                  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-                  color: #CFE6F2;
-                  --primary-text-color: #E3EDF5;
-                  --secondary-text-color: #93A1B0;
-                  --paper-item-icon-color: #8ADAF2;
-                }
-                .card-header {
-                  color: #CFE6F2 !important;
-                  font-size: 15px;
-                  font-weight: 600;
-                }
+              # The field is a Web Awesome <wa-input>, not an ha-textfield.
+              # It exposes part="base", and a part is styleable from outside
+              # its shadow root, so the rule only has to reach <ha-input> —
+              # with !important, because the component styles the same box
+              # with a class selector that outranks an outside ::part() rule.
+              style:
+                hui-input-text-entity-row:
+                  $:
+                    ha-input:
+                      $: |
+                        wa-input::part(base) {
+                          background: rgba(255,255,255,0.06) !important;
+                          border-color: rgba(255,255,255,0.12) !important;
+                        }
+                        wa-input::part(input) { color: #E3EDF5 !important; }
+                .: |
+                  ha-card {
+                    background: rgba(255,255,255,0.05);
+                    border: none;
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+                    color: #CFE6F2;
+                    --primary-text-color: #E3EDF5;
+                    --secondary-text-color: #93A1B0;
+                    --paper-item-icon-color: #8ADAF2;
+                  }
+                  .card-header {
+                    color: #CFE6F2 !important;
+                    font-size: 15px;
+                    font-weight: 600;
+                  }
             entities:
               - entity: input_text.fire_tv_keyboard
                 name: Type into search
