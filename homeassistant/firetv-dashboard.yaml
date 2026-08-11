@@ -1,0 +1,465 @@
+# Fire TV remote — bespoke "Ember" dashboard
+#
+# Every control is an HTTP POST to the hms-firetv service, through the
+# rest_command entries in configuration.yaml and the scripts that resolve the
+# selected device. MQTT still works and its discovered entities still exist;
+# REST is used because it carries parameters a button entity cannot — a hold
+# duration, a package name, a phrase to speak — and it answers synchronously,
+# so a failure surfaces instead of vanishing into a topic.
+#
+# The app grid is generated from sensor.fire_tv_apps, the list the device
+# itself reports through appsV2. Nobody maintains it, so it cannot go stale
+# the way the old four hardcoded icons did.
+#
+# The dark ground comes from the view-level `background` key rather than a
+# theme: no dark theme is installed on this instance, and a theme would apply
+# far beyond this dashboard.
+#
+# Requires button-card and config-template-card, both already installed.
+
+button_card_templates:
+
+  # ── base key: dark, machined, with a real press ─────────────────────────
+  ftv_base:
+    color_type: card
+    show_icon: true
+    show_name: false
+    styles:
+      card:
+        - background: "rgba(255,255,255,0.05)"
+        - border-radius: 14px
+        - border: none
+        - box-shadow: "inset 0 1px 0 rgba(255,255,255,0.06)"
+        - height: 52px
+      icon:
+        - width: 23px
+        - color: "#AFBDCD"
+    extra_styles: |
+      ha-card {
+        transition: transform .1s ease, background .1s ease,
+                    box-shadow .1s ease, filter .1s ease;
+      }
+      /* the press: shrink under the finger and flare cyan */
+      ha-card:active {
+        transform: scale(0.91);
+        background: rgba(79,195,232,0.22) !important;
+        box-shadow: 0 0 16px rgba(79,195,232,0.45),
+                    inset 0 1px 0 rgba(255,255,255,0.08) !important;
+        filter: brightness(1.3);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        ha-card { transition: none; }
+        ha-card:active { transform: none; }
+      }
+
+  # ── direction key on the pad ────────────────────────────────────────────
+  # Tap sends one press. Holding sends keyDown, waits, then keyUp, which is
+  # what makes the device repeat a key instead of stepping once.
+  # Width is pinned so the circle stays a circle: a stack column is far wider
+  # than 66px, and border-radius on a stretched box gives an ellipse.
+  ftv_pad:
+    template: ftv_base
+    styles:
+      card:
+        - background: "radial-gradient(circle at 50% 35%, #222B39, #151B25)"
+        - border-radius: 50%
+        - width: 66px
+        - height: 66px
+        - margin: 0 auto
+        - box-shadow: "inset 0 1px 0 rgba(255,255,255,0.07)"
+      icon:
+        - width: 26px
+        - color: "#C3D0DE"
+    extra_styles: |
+      ha-card { transition: transform .1s ease, filter .1s ease; }
+      ha-card:active {
+        transform: scale(0.88);
+        filter: brightness(1.7) drop-shadow(0 0 12px rgba(79,195,232,0.85));
+      }
+
+  ftv_ok:
+    template: ftv_pad
+    show_name: true
+    show_icon: false
+    name: OK
+    styles:
+      card:
+        - background: "linear-gradient(160deg,#22303F,#141B25)"
+        - width: 92px
+        - height: 92px
+        - box-shadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 0 0 1px rgba(255,255,255,0.05)"
+      name:
+        - font-size: 13px
+        - font-weight: 600
+        - letter-spacing: 0.14em
+        - color: "#D3E8F4"
+
+  # invisible filler so a 3-up row can hold a single centred key
+  ftv_gap:
+    color_type: card
+    show_icon: false
+    show_name: false
+    styles:
+      card:
+        - background: transparent
+        - box-shadow: none
+        - border: none
+        - height: 66px
+
+  ftv_key:
+    template: ftv_base
+
+  # a labelled action key
+  ftv_action:
+    template: ftv_base
+    show_name: true
+    styles:
+      card:
+        - height: 48px
+      name:
+        - font-size: 12px
+        - color: "#CFE6F2"
+      icon:
+        - width: 20px
+        - color: "#8ADAF2"
+
+  # ── one installed app ───────────────────────────────────────────────────
+  ftv_app:
+    color_type: card
+    show_icon: false
+    show_name: true
+    styles:
+      card:
+        - background: "rgba(255,255,255,0.05)"
+        - border-radius: 12px
+        - border: none
+        - padding: 9px 4px 7px
+        - box-shadow: "inset 0 1px 0 rgba(255,255,255,0.05)"
+      grid:
+        - grid-template-areas: '"pic" "n"'
+        - grid-template-rows: auto auto
+        - row-gap: 6px
+      name:
+        - font-size: 10px
+        - color: "#A3B0BF"
+        - line-height: 1.2
+        - white-space: normal
+        - overflow: hidden
+        - max-height: 24px
+      custom_fields:
+        pic:
+          - justify-self: center
+    extra_styles: |
+      ha-card { transition: transform .1s ease, box-shadow .1s ease, background .1s ease; }
+      ha-card:active {
+        transform: scale(0.9);
+        background: rgba(79,195,232,0.18) !important;
+        box-shadow: 0 0 16px rgba(79,195,232,0.45) !important;
+      }
+
+views:
+  # Split into three views rather than one long column: on a phone the
+  # pad has to sit under the thumb without scrolling, and 25 app tiles
+  # below it pushed everything off screen.
+  - title: Remote
+    path: remote
+    icon: mdi:remote
+    background: "linear-gradient(178deg, #151C27 0%, #0B0E13 100%) #0B0E13"
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:mushroom-select-card
+            entity: input_select.fire_tv_target
+            name: Fire TV
+            icon: mdi:television-play
+            secondary_info: none
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(255,255,255,0.05);
+                  border: none;
+                  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+                  --primary-text-color: #E3EDF5;
+                  --secondary-text-color: #93A1B0;
+                  --card-primary-color: #E3EDF5;
+                  --card-secondary-color: #93A1B0;
+                  --mdc-select-fill-color: rgba(255,255,255,0.06);
+                  --mdc-select-ink-color: #E3EDF5;
+                  --mdc-select-label-ink-color: #8FA0B2;
+                }
+
+          # tap steps once, hold repeats
+          - type: horizontal-stack
+            # The keys are fixed-width circles, so the stack sizes them to
+            # content and left-aligns the row. Centre it explicitly.
+            card_mod:
+              style: |
+                #root { justify-content: center; gap: 10px; }
+            cards:
+              - type: custom:button-card
+                template: ftv_pad
+                icon: mdi:chevron-up
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: up }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_up }
+          - type: horizontal-stack
+            # The keys are fixed-width circles, so the stack sizes them to
+            # content and left-aligns the row. Centre it explicitly.
+            card_mod:
+              style: |
+                #root { justify-content: center; gap: 10px; }
+            cards:
+              - type: custom:button-card
+                template: ftv_pad
+                icon: mdi:chevron-left
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: left }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_left }
+              - type: custom:button-card
+                template: ftv_ok
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: select }
+              - type: custom:button-card
+                template: ftv_pad
+                icon: mdi:chevron-right
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: right }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_right }
+          - type: horizontal-stack
+            # The keys are fixed-width circles, so the stack sizes them to
+            # content and left-aligns the row. Centre it explicitly.
+            card_mod:
+              style: |
+                #root { justify-content: center; gap: 10px; }
+            cards:
+              - type: custom:button-card
+                template: ftv_pad
+                icon: mdi:chevron-down
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: down }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: hold_down }
+
+          - type: horizontal-stack
+            cards:
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:arrow-left
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: back }
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:home
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: home }
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:menu
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: menu }
+              # tap sleeps, hold wakes
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:power
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: sleep }
+                hold_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: wake }
+
+          - type: horizontal-stack
+            cards:
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:play
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: play }
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:pause
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: pause }
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:volume-minus
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: volume_down }
+              - type: custom:button-card
+                template: ftv_key
+                icon: mdi:volume-plus
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_send_command
+                  service_data: { command: volume_up }
+
+  - title: Voice
+    path: voice
+    icon: mdi:microphone
+    background: "linear-gradient(178deg, #151C27 0%, #0B0E13 100%) #0B0E13"
+    cards:
+      - type: vertical-stack
+        cards:
+          # Typed here, synthesised by Piper, streamed into the device's
+          # microphone channel - the Fire TV voice socket carries audio and
+          # never text, which is why a TTS engine is in the path at all.
+          - type: entities
+            title: Say to Alexa
+            show_header_toggle: false
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(255,255,255,0.05);
+                  border: none;
+                  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+                  color: #CFE6F2;
+                  --primary-text-color: #E3EDF5;
+                  --secondary-text-color: #93A1B0;
+                  --paper-item-icon-color: #8ADAF2;
+                }
+                .card-header {
+                  color: #CFE6F2 !important;
+                  font-size: 15px;
+                  font-weight: 600;
+                }
+            entities:
+              - entity: input_text.fire_tv_voice
+                name: Phrase
+                icon: mdi:microphone-message
+
+          - type: horizontal-stack
+            cards:
+              - type: custom:button-card
+                template: ftv_action
+                name: Speak
+                icon: mdi:send
+                tap_action:
+                  action: call-service
+                  service: script.fire_tv_speak
+              # Opened as its own window: a browser only grants a microphone
+              # to a secure context and HA is served over plain HTTP, and an
+              # https page embedded in an http one does not qualify either.
+              - type: custom:button-card
+                template: ftv_action
+                name: Hold to talk
+                icon: mdi:microphone
+                styles:
+                  card:
+                    - background: "rgba(79,195,232,0.16)"
+                tap_action:
+                  action: url
+                  url_path: https://192.168.2.15:8443/voice.html
+
+          - type: entities
+            title: Keyboard
+            show_header_toggle: false
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(255,255,255,0.05);
+                  border: none;
+                  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+                  color: #CFE6F2;
+                  --primary-text-color: #E3EDF5;
+                  --secondary-text-color: #93A1B0;
+                  --paper-item-icon-color: #8ADAF2;
+                }
+                .card-header {
+                  color: #CFE6F2 !important;
+                  font-size: 15px;
+                  font-weight: 600;
+                }
+            entities:
+              - entity: input_text.fire_tv_keyboard
+                name: Type into search
+                icon: mdi:keyboard
+
+          - type: custom:button-card
+            template: ftv_action
+            name: Send text
+            icon: mdi:keyboard-return
+            tap_action:
+              action: call-service
+              service: script.fire_tv_type_text
+
+  - title: Apps
+    path: apps
+    icon: mdi:apps
+    background: "linear-gradient(178deg, #151C27 0%, #0B0E13 100%) #0B0E13"
+    cards:
+      - type: vertical-stack
+        cards:
+          # Generated from what the device reports, so installing an app on
+          # the stick adds a tile after a refresh. Nothing to edit here.
+          #
+          # The template lines all sit at the SAME indentation and the scalar
+          # is `>-` on purpose: a deeper-indented line in a folded scalar keeps
+          # its newline, and config-template-card runs
+          # eval(template.substring(2, length - 1)) - it strips exactly one
+          # trailing character, so a trailing newline leaves a stray brace and
+          # the grid silently renders nothing.
+          - type: custom:config-template-card
+            entities:
+              - sensor.fire_tv_apps
+              - input_select.fire_tv_target
+            card:
+              type: grid
+              # three across stays thumb-sized on a phone; four is cramped
+              columns: 3
+              square: false
+              cards: >-
+                ${((states['sensor.fire_tv_apps'] && states['sensor.fire_tv_apps'].attributes.apps) || []).map(function (a) {
+                return { type: 'custom:button-card', template: 'ftv_app', name: a.name,
+                custom_fields: { pic: '<img src="' + a.icon_url + '" alt="" style="width:46px;height:46px;border-radius:11px;object-fit:cover;display:block;">' },
+                tap_action: { action: 'call-service', service: 'script.fire_tv_launch_package',
+                service_data: { package: a.package } } }; })}
+
+          - type: custom:button-card
+            template: ftv_action
+            name: Refresh app list from device
+            icon: mdi:refresh
+            styles:
+              name:
+                - font-size: 12px
+                - color: "#93A1B0"
+              icon:
+                - color: "#93A1B0"
+            tap_action:
+              action: call-service
+              service: script.fire_tv_send_command
+              service_data: { command: apps_sync }

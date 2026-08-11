@@ -1,4 +1,5 @@
 #include "clients/LightningClient.h"
+#include <thread>
 #include <iostream>
 #include <sstream>
 #include <chrono>
@@ -393,6 +394,7 @@ CommandResult LightningClient::executeGet(const std::string& url, long timeout_s
     curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &response_body);
     curl_easy_setopt(curl_, CURLOPT_TIMEOUT, timeout_seconds);
+    curl_easy_setopt(curl_, CURLOPT_CONNECTTIMEOUT, CONNECT_TIMEOUT);
     curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0L);  // Disable SSL verification (self-signed cert)
     curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl_, CURLOPT_FOLLOWLOCATION, 1L);  // Follow redirects
@@ -416,6 +418,28 @@ CommandResult LightningClient::executeGet(const std::string& url, long timeout_s
 
     // Check for errors
     if (res != CURLE_OK) {
+        // A sleeping Fire TV closes 8080 entirely, so this is a socket-level
+        // failure with no HTTP status rather than an error response. Wake it
+        // and send the command once more - that is what the caller meant by
+        // pressing a button on a sleeping device. Commands used to arrive only
+        // over MQTT, where CommandHandler woke the device first; a REST caller
+        // had no such path, so this recovers for every caller.
+        // Only a refused connection means "host is up, port is shut", which is
+        // exactly what a sleeping Fire TV looks like. A timeout means the host
+        // is absent or wedged, and waking it cannot help - retrying there just
+        // doubles the wait for every command sent to a device that is gone.
+        bool asleep = (res == CURLE_COULDNT_CONNECT);
+        if (asleep && !retrying_after_wake_) {
+            std::cout << "[LightningClient] " << ip_address_
+                      << " did not answer, waking and retrying once" << std::endl;
+            if (wakeAndWait()) {
+                retrying_after_wake_ = true;
+                auto retried = executeGet(url, timeout_seconds);
+                retrying_after_wake_ = false;
+                return retried;
+            }
+        }
+
         result.error = curl_easy_strerror(res);
         result.success = false;
         return result;
@@ -428,6 +452,24 @@ CommandResult LightningClient::executeGet(const std::string& url, long timeout_s
 
     result.success = (http_code >= 200 && http_code < 300);
     return result;
+}
+
+bool LightningClient::wakeAndWait() {
+    if (!wakeDevice()) return false;
+
+    // Waking takes a couple of seconds. Polling rather than sleeping a fixed
+    // time keeps the cost near zero for a device that was already warm.
+    for (int attempt = 0; attempt < 6; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(700));
+        if (isLightningApiAvailable()) {
+            std::cout << "[LightningClient] " << ip_address_ << " awake after "
+                      << ((attempt + 1) * 700) << "ms" << std::endl;
+            return true;
+        }
+    }
+
+    std::cerr << "[LightningClient] " << ip_address_ << " did not wake" << std::endl;
+    return false;
 }
 
 CommandResult LightningClient::executePost(const std::string& url,
@@ -453,6 +495,7 @@ CommandResult LightningClient::executePost(const std::string& url,
     curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &response_body);
     curl_easy_setopt(curl_, CURLOPT_TIMEOUT, timeout_seconds);
+    curl_easy_setopt(curl_, CURLOPT_CONNECTTIMEOUT, CONNECT_TIMEOUT);
     curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0L);  // Disable SSL verification (self-signed cert)
     curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl_, CURLOPT_FOLLOWLOCATION, 1L);  // Follow redirects
@@ -483,6 +526,28 @@ CommandResult LightningClient::executePost(const std::string& url,
 
     // Check for errors
     if (res != CURLE_OK) {
+        // A sleeping Fire TV closes 8080 entirely, so this is a socket-level
+        // failure with no HTTP status rather than an error response. Wake it
+        // and send the command once more - that is what the caller meant by
+        // pressing a button on a sleeping device. Commands used to arrive only
+        // over MQTT, where CommandHandler woke the device first; a REST caller
+        // had no such path, so this recovers for every caller.
+        // Only a refused connection means "host is up, port is shut", which is
+        // exactly what a sleeping Fire TV looks like. A timeout means the host
+        // is absent or wedged, and waking it cannot help - retrying there just
+        // doubles the wait for every command sent to a device that is gone.
+        bool asleep = (res == CURLE_COULDNT_CONNECT);
+        if (asleep && !retrying_after_wake_) {
+            std::cout << "[LightningClient] " << ip_address_
+                      << " did not answer, waking and retrying once" << std::endl;
+            if (wakeAndWait()) {
+                retrying_after_wake_ = true;
+                auto retried = executePost(url, json_body, timeout_seconds, include_token);
+                retrying_after_wake_ = false;
+                return retried;
+            }
+        }
+
         result.error = curl_easy_strerror(res);
         result.success = false;
         return result;
