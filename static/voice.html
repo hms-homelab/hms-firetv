@@ -96,17 +96,29 @@
   'use strict';
 
   const TARGET_RATE = 16000;   // the Fire TV accepts nothing else
-  const FRAME = 1024;          // capture granularity
+  const MAX_BUFFER_SEC = 15;   // cap on audio held while the session opens
 
   const $device = document.getElementById('device');
   const $talk   = document.getElementById('talk');
   const $status = document.getElementById('status');
   const $level  = document.getElementById('level');
 
-  let ws = null, ctx = null, stream = null, node = null, source = null;
-  let ready = false, talking = false;
+  let ws = null, ctx = null, stream = null;
+
+  // Every node is held in a variable that outlives openMic(). A capture graph
+  // whose nodes are only referenced by the graph itself gets collected, and
+  // when that happens the audio callback simply stops firing - the socket
+  // stays open and healthy while nothing is sent. That is what happened here:
+  // it worked for a few presses and then went silent.
+  let micNode = null, tapNode = null, procNode = null, muteNode = null;
+
+  let ready = false, talking = false, pendingStop = false;
+  let pending = [];      // audio captured before the session was ready
+  let pendingLen = 0;
+  let sentBytes = 0;
 
   const say = (msg, kind = '') => { $status.textContent = msg; $status.className = kind; };
+  const kb  = (n) => (n / 1024).toFixed(0) + ' KB';
 
   // ---------------------------------------------------------------- devices
   async function loadDevices() {
@@ -130,8 +142,8 @@
   }
 
   // ------------------------------------------------------------------ audio
-  // Linear interpolation is plenty here: speech into a recogniser at 16 kHz,
-  // and the ratio from a typical 48 kHz context is small.
+  // Linear interpolation is plenty: speech into a recogniser at 16 kHz, and
+  // the ratio from a typical 48 kHz context is small.
   function resample(input, fromRate) {
     if (fromRate === TARGET_RATE) return input;
     const ratio = fromRate / TARGET_RATE;
@@ -153,54 +165,101 @@
     return pcm;
   }
 
+  function socketOpen() { return ws && ws.readyState === WebSocket.OPEN; }
+
+  function sendPcm(pcm) {
+    if (!socketOpen() || !pcm.length) return;
+    ws.send(pcm.buffer);
+    sentBytes += pcm.byteLength;
+    say('listening… ' + kb(sentBytes), 'ok');
+  }
+
+  /** Everything captured before "ready" is kept and flushed, so the start of
+   *  an utterance is not lost while the device is still waking. */
+  function flushPending() {
+    if (!pending.length) return;
+    for (const chunk of pending) sendPcm(chunk);
+    pending = [];
+    pendingLen = 0;
+  }
+
+  function onAudio(samples) {
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const a = Math.abs(samples[i]);
+      if (a > peak) peak = a;
+    }
+    $level.style.transform = `scaleX(${Math.min(1, peak * 1.4)})`;
+
+    if (!talking) return;
+    const pcm = toPcm16(resample(samples, ctx.sampleRate));
+
+    if (ready) { sendPcm(pcm); return; }
+
+    // Session still opening (the device may be waking). Hold it, bounded.
+    if (pendingLen < MAX_BUFFER_SEC * TARGET_RATE) {
+      pending.push(pcm);
+      pendingLen += pcm.length;
+    }
+  }
+
+  // Runs on the audio thread and posts raw frames back. An AudioWorklet is
+  // used in preference to a ScriptProcessor because the latter is deprecated
+  // and is the node that silently stops when collected.
+  const WORKLET_SRC = `
+    class PcmTap extends AudioWorkletProcessor {
+      process(inputs) {
+        const ch = inputs[0] && inputs[0][0];
+        // the buffer is reused between calls, so post a copy
+        if (ch && ch.length) this.port.postMessage(new Float32Array(ch));
+        return true;
+      }
+    }
+    registerProcessor('pcm-tap', PcmTap);
+  `;
+
   async function openMic() {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         channelCount: 1,
-        sampleRate: TARGET_RATE,      // honoured by Chrome/Firefox; a hint elsewhere
+        sampleRate: TARGET_RATE,   // honoured by Chrome/Firefox, a hint elsewhere
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true
       }
     });
 
-    // Ask for the target rate up front so most browsers never resample.
     try { ctx = new AudioContext({ sampleRate: TARGET_RATE }); }
     catch { ctx = new AudioContext(); }
     if (ctx.state === 'suspended') await ctx.resume();
 
-    source = ctx.createScriptProcessor
-      ? ctx.createScriptProcessor(FRAME, 1, 1)
-      : null;
+    micNode = ctx.createMediaStreamSource(stream);
 
-    // ScriptProcessor is deprecated but is the one path that works in every
-    // browser and in the Home Assistant companion webview, which is where
-    // this page is meant to live.
-    node = source;
-    const mic = ctx.createMediaStreamSource(stream);
-    mic.connect(node);
+    // A zero gain into the destination keeps the graph running without
+    // echoing the microphone back out of the speakers.
+    muteNode = ctx.createGain();
+    muteNode.gain.value = 0;
 
-    // Chrome will not run a ScriptProcessor unless it reaches a destination.
-    // A zero gain keeps it running without echoing the mic to the speakers.
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    node.connect(mute);
-    mute.connect(ctx.destination);
-
-    node.onaudioprocess = (e) => {
-      const input = e.inputBuffer.getChannelData(0);
-
-      let peak = 0;
-      for (let i = 0; i < input.length; i++) {
-        const a = Math.abs(input[i]);
-        if (a > peak) peak = a;
+    if (ctx.audioWorklet) {
+      const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+      try {
+        await ctx.audioWorklet.addModule(url);
+        tapNode = new AudioWorkletNode(ctx, 'pcm-tap');
+        tapNode.port.onmessage = (e) => onAudio(e.data);
+        micNode.connect(tapNode);
+        tapNode.connect(muteNode);
+      } finally {
+        URL.revokeObjectURL(url);
       }
-      $level.style.transform = `scaleX(${Math.min(1, peak * 1.4)})`;
+    } else {
+      // Older webview: fall back, but keep every node referenced.
+      procNode = ctx.createScriptProcessor(1024, 1, 1);
+      procNode.onaudioprocess = (e) => onAudio(e.inputBuffer.getChannelData(0));
+      micNode.connect(procNode);
+      procNode.connect(muteNode);
+    }
 
-      if (!talking || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
-      const pcm = toPcm16(resample(input, ctx.sampleRate));
-      ws.send(pcm.buffer);
-    };
+    muteNode.connect(ctx.destination);
   }
 
   // --------------------------------------------------------------- transport
@@ -213,12 +272,29 @@
 
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.type === 'ready') { ready = true; say('listening…', 'ok'); $talk.classList.add('live'); }
-      else if (m.type === 'stopped') { say('sent — ' + (m.detail || ''), 'ok'); }
-      else if (m.type === 'error') { say(m.detail || 'error', 'bad'); ready = false; $talk.classList.remove('live'); }
+
+      if (m.type === 'ready') {
+        ready = true;
+        $talk.classList.add('live');
+        flushPending();
+        // Released while the device was still waking: the utterance was
+        // buffered, so send it and close rather than dropping it.
+        if (pendingStop) { pendingStop = false; finishTalking(); }
+      } else if (m.type === 'stopped') {
+        say('sent — ' + (m.detail || ''), 'ok');
+      } else if (m.type === 'error') {
+        say(m.detail || 'error', 'bad');
+        ready = false; talking = false; pendingStop = false;
+        pending = []; pendingLen = 0;
+        $talk.classList.remove('live');
+      }
     };
 
-    ws.onclose = () => { $talk.disabled = true; ready = false; say('disconnected — reconnecting…', 'bad'); setTimeout(connect, 2000); };
+    ws.onclose = () => {
+      $talk.disabled = true; ready = false; talking = false;
+      say('disconnected — reconnecting…', 'bad');
+      setTimeout(connect, 2000);
+    };
     ws.onerror = () => say('websocket error', 'bad');
   }
 
@@ -227,8 +303,8 @@
     ev.preventDefault();
     if (talking || $talk.disabled) return;
 
-    // The mic is opened on the first press: a user gesture is required, and
-    // it keeps the capture indicator off until it is actually wanted.
+    // The microphone is opened on the first press: a user gesture is required,
+    // and it keeps the recording indicator off until it is actually wanted.
     if (!ctx) {
       try { say('opening microphone…'); await openMic(); }
       catch (e) {
@@ -240,22 +316,35 @@
     }
     if (ctx.state === 'suspended') await ctx.resume();
 
+    sentBytes = 0; pending = []; pendingLen = 0; pendingStop = false;
     talking = true;
     $talk.textContent = 'RELEASE TO SEND';
     say('opening session…');
     ws.send('start');
   }
 
+  function finishTalking() {
+    flushPending();
+    ready = false;
+    $talk.classList.remove('live');
+    $level.style.transform = 'scaleX(0)';
+    say('sending… ' + kb(sentBytes));
+    if (socketOpen()) ws.send('stop');
+  }
+
   function release(ev) {
     ev.preventDefault();
     if (!talking) return;
     talking = false;
-    ready = false;
     $talk.textContent = 'HOLD TO TALK';
-    $talk.classList.remove('live');
-    $level.style.transform = 'scaleX(0)';
-    say('sending…');
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send('stop');
+
+    if (!ready) {
+      // Session has not opened yet; hold the audio and stop once it does.
+      pendingStop = true;
+      say('device still waking — will send when ready');
+      return;
+    }
+    finishTalking();
   }
 
   $talk.addEventListener('pointerdown', press);
@@ -264,6 +353,30 @@
   $talk.addEventListener('pointerleave', release);
 
   $device.addEventListener('change', () => { if (ws) ws.close(); });
+
+  /* Send a second of tone through the exact path the microphone uses, so the
+   * relay can be proven end to end from a machine with no microphone. Call
+   * __voiceSelfTest() from the console; watch the byte count on the service. */
+  window.__voiceSelfTest = async function () {
+    if (!socketOpen()) return 'socket not open';
+    sentBytes = 0; pending = []; pendingLen = 0; pendingStop = false;
+    ready = false; talking = true;
+    ws.send('start');
+    await new Promise((res) => {
+      const t = setInterval(() => { if (ready) { clearInterval(t); res(); } }, 100);
+      setTimeout(() => { clearInterval(t); res(); }, 20000);
+    });
+    if (!ready) { talking = false; return 'session never became ready'; }
+    const tone = new Float32Array(TARGET_RATE);
+    for (let i = 0; i < tone.length; i++) tone[i] = Math.sin(2 * Math.PI * 440 * i / TARGET_RATE) * 0.3;
+    for (let off = 0; off < tone.length; off += 1600) {
+      sendPcm(toPcm16(tone.subarray(off, Math.min(off + 1600, tone.length))));
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    talking = false;
+    finishTalking();
+    return 'self test sent ' + sentBytes + ' bytes';
+  };
 
   // ------------------------------------------------------------------- start
   (async () => {
