@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.1.0] - 2026-08-11
+
+### Added
+- Alexa voice control. The device voice channel carries raw PCM at 16 kHz mono
+  over a WebSocket on port 9090, never text, so text is synthesised with a
+  Wyoming TTS engine (`TTS_HOST`) and streamed to the device microphone.
+  Three modes: session bookends, speak text or a file/URL, and a live relay.
+- Live microphone relay at `/ws/voice`, with a push-to-talk page at
+  `static/voice.html`. Needs TLS, so an optional listener was added behind
+  `API_SSL_PORT` — browsers only grant a microphone to a secure context.
+- Press and hold. Navigation can now send a keyDown/keyUp pair, which is what
+  makes the device repeat a key; `POST /api/devices/:id/hold` and `/key`.
+- Installed app list from the device itself via `appsV2`, stored by
+  `AppSyncService` and exposed as `POST /api/devices/:id/apps/sync`. Home
+  Assistant gets a select entity holding the real apps.
+- Home Assistant dashboard rebuilt over the REST API, in `homeassistant/`.
+
+### Changed
+- A sleeping device is now woken and the command retried once, in both the
+  synchronous client and the async one. Only a refused connection triggers it;
+  retrying a timeout only doubles the wait for a device that is absent.
+- Requests use a 2 second connect timeout, so an unreachable device fails fast
+  instead of burning the full command timeout.
+
+### Removed
+- ADB. Its only purpose was listing installed apps, which `appsV2` now does
+  without debugging mode or port 5555. `Device::adb_enabled` and the
+  `discovered_via_adb` column are gone.
+
+### Fixed
+- `device_apps` was missing `sort_order` while `getAppsForDevice` selected it,
+  so that query had been failing on PostgreSQL and no app list ever reached
+  Home Assistant.
+- Four test suites initialised the database service but never wired it into the
+  repositories, so every repository call short-circuited and the controllers
+  answered 500 — and the fallback pointed at the production database. Each now
+  builds its own in-memory SQLite. Suite goes 6/10 to 10/10.
+- `SELECT *` on `fire_tv_devices` replaced with explicit column lists; the
+  SQLite parser reads by position and would have misaligned every field.
+
 ## [1.0.7] - 2026-08-09
 
 ### Fixed

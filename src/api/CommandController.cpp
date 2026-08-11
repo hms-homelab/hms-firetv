@@ -3,6 +3,7 @@
 #include <drogon/HttpClient.h>
 #include <iostream>
 #include <chrono>
+#include <thread>
 
 using namespace drogon;
 
@@ -582,7 +583,8 @@ void CommandController::getHistory(const HttpRequestPtr& req,
 void CommandController::makeAsyncFireTVCall(const std::string& device_id,
                                              const std::string& endpoint,
                                              const Json::Value& json_body,
-                                             std::function<void(bool, int, const std::string&)> completion_callback) {
+                                             std::function<void(bool, int, const std::string&)> completion_callback,
+                                             bool allow_wake_retry) {
     // Get device from database
     auto device = DeviceRepository::getInstance().getDeviceById(device_id);
     if (!device.has_value()) {
@@ -616,7 +618,7 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
 
     // Send async request
     client->sendRequest(req,
-        [completion_callback, start_time, device_id]
+        [this, completion_callback, start_time, device_id, endpoint, json_body, allow_wake_retry]
         (ReqResult result, const HttpResponsePtr& response) {
 
         // Calculate response time
@@ -658,6 +660,42 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
                     break;
                 default:
                     error_msg = "Unknown error";
+            }
+
+            // A sleeping Fire TV has no listener on 8080, so the request dies
+            // at the socket. Wake it and send the command once more, which is
+            // what pressing a button on a sleeping device is meant to do.
+            // LightningClient recovers this for its own callers, but this path
+            // uses Drogon's async client and never reaches it.
+            bool unreachable = (result == ReqResult::BadServerAddress ||
+                                result == ReqResult::NetworkFailure);
+            if (unreachable && allow_wake_retry) {
+                std::cout << "[CommandController] " << device_id
+                          << " unreachable, waking and retrying once" << std::endl;
+                std::thread([this, device_id, endpoint, json_body,
+                             completion_callback, response_time_ms, error_msg]() mutable {
+                    auto dev = DeviceRepository::getInstance().getDeviceById(device_id);
+                    if (!dev.has_value()) {
+                        completion_callback(false, response_time_ms, error_msg);
+                        return;
+                    }
+                    LightningClient waker(dev->ip_address, dev->api_key,
+                                         dev->client_token.value_or(""));
+                    if (!waker.wakeDevice()) {
+                        completion_callback(false, response_time_ms, "device did not answer wake");
+                        return;
+                    }
+                    for (int i = 0; i < 6; ++i) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(700));
+                        if (waker.isLightningApiAvailable()) {
+                            makeAsyncFireTVCall(device_id, endpoint, json_body,
+                                                completion_callback, false);
+                            return;
+                        }
+                    }
+                    completion_callback(false, response_time_ms, "device did not wake");
+                }).detach();
+                return;
             }
 
             std::cerr << "[CommandController] Fire TV API call failed for " << device_id

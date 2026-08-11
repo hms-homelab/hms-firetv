@@ -178,7 +178,8 @@ private:
     void makeAsyncFireTVCall(const std::string& device_id,
                              const std::string& endpoint,
                              const Json::Value& json_body,
-                             std::function<void(bool, int, const std::string&)> completion_callback);
+                             std::function<void(bool, int, const std::string&)> completion_callback,
+                             bool allow_wake_retry = true);
 
     /**
      * Log command to database

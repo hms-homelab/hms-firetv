@@ -244,6 +244,10 @@ private:
     static constexpr long WAKE_TIMEOUT = 5L;
     static constexpr long HEALTH_TIMEOUT = 2L;
     static constexpr long COMMAND_TIMEOUT = 10L;
+    /* A device that is present answers the TCP connect immediately, asleep
+     * or not. Anything slower is absent, and waiting the full command
+     * timeout on it only delays the failure. */
+    static constexpr long CONNECT_TIMEOUT = 2L;
 
     /**
      * CURL write callback for response data
@@ -288,6 +292,25 @@ private:
      * @return Parsed JSON value
      */
     Json::Value parseJsonResponse(const std::string& body);
+
+    /**
+     * Wake the device and wait for the Lightning API to answer.
+     *
+     * A sleeping Fire TV does not listen on 8080 at all, so a command sent to
+     * one fails at the socket with no HTTP status. Callers that went through
+     * MQTT used to be woken by CommandHandler, but a REST caller was not, so
+     * pressing a button on a sleeping device silently did nothing. Recovering
+     * here means every path gets it.
+     *
+     * @return true if the API answered within the wait
+     */
+    bool wakeAndWait();
+
+    /**
+     * Guards the wake-and-retry so a retried request cannot recurse.
+     * Not atomic because a LightningClient is single-threaded by contract.
+     */
+    bool retrying_after_wake_ = false;
 };
 
 } // namespace hms_firetv
