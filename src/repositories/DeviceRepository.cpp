@@ -65,6 +65,11 @@ bool DeviceRepository::updateLastSeen(const std::string& device_id, const std::s
     return db_->updateLastSeen(device_id, status);
 }
 
+bool DeviceRepository::setDialUdn(const std::string& device_id, const std::string& dial_udn) {
+    if (!db_) return false;
+    return db_->setDialUdn(device_id, dial_udn);
+}
+
 bool DeviceRepository::deviceExists(const std::string& device_id) {
     if (!db_) return false;
     return db_->deviceExists(device_id);

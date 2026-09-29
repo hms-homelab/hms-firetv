@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.1.3] - 2026-09-29
+
+### Fixed
+- Discovery no longer wakes Fire TVs. When a registered device was missing
+  from its IP, every scan woke each unclaimed Fire TV on the subnet to test
+  its pairing token, and a Fire TV that wakes powers its TV on over HDMI-CEC.
+  One device that was simply switched off kept turning another room's TV back
+  on every five minutes. Devices are now identified by their DIAL UDN
+  (`:60000/dd.xml`), which answers while asleep and wakes nothing. A device
+  whose UDN is not known yet is left alone rather than guessed at.
+- Moving a device to its new IP now goes through the device repository, so
+  it works on SQLite as well as PostgreSQL (it used to write to PostgreSQL
+  directly).
+- stdout is line-buffered, so journal timestamps match when a line was
+  written instead of when a buffer happened to flush.
+
+### Added
+- `dial_udn` column on `fire_tv_devices`, learned while a device sits at its
+  registered IP. Added automatically on start for SQLite, and for PostgreSQL
+  when the service user owns the table (otherwise run
+  `ALTER TABLE fire_tv_devices ADD COLUMN dial_udn VARCHAR(100)` as the owner).
+
 ## [1.1.2] - 2026-08-11
 
 ### Security
