@@ -24,6 +24,7 @@ struct Device {
     std::optional<std::chrono::system_clock::time_point> pin_expires_at;  // PIN expiration
     std::string status;                                          // online|offline|pairing|error
     std::optional<std::chrono::system_clock::time_point> last_seen_at;    // Last successful command
+    std::optional<std::string> dial_udn;                         // DIAL UDN from :60000/dd.xml (answers while asleep)
     std::chrono::system_clock::time_point created_at;
     std::chrono::system_clock::time_point updated_at;
 
@@ -86,6 +87,10 @@ struct Device {
             char buffer[32];
             strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", localtime(&time_t));
             json["last_seen_at"] = buffer;
+        }
+
+        if (dial_udn.has_value()) {
+            json["dial_udn"] = dial_udn.value();
         }
 
         auto created_time_t = std::chrono::system_clock::to_time_t(created_at);

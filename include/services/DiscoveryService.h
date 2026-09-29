@@ -15,6 +15,7 @@ struct DiscoveredDevice {
     std::string hostname;
     bool has_wake_port;
     bool has_lightning;
+    std::string dial_udn;  // empty when :60000/dd.xml did not answer
 };
 
 class DiscoveryService {
@@ -38,16 +39,18 @@ public:
 
     std::vector<DiscoveredDevice> getUnregisteredDevices();
 
+    // Public so tests can feed it a scan result without a network.
+    void matchAndUpdate(const std::vector<DiscoveredDevice>& discovered);
+
+    // The <UDN> of a DIAL device description, or "" if there is none.
+    static std::string parseDialUdn(const std::string& dd_xml);
+
 private:
     void scanLoop();
     std::vector<DiscoveredDevice> scanSubnet();
-    // Wakes a sleeping Fire TV so the token probe on 8080 can reach it.
-    static bool wakeDevice(const std::string& ip);
     bool probeWakeEndpoint(const std::string& ip);
-    bool probeLightningWithToken(const std::string& ip,
-                                 const std::string& api_key,
-                                 const std::string& client_token);
-    void matchAndUpdate(const std::vector<DiscoveredDevice>& discovered);
+    // GET :60000/dd.xml. Answers while the device sleeps and does not wake it.
+    static std::string fetchDialUdn(const std::string& ip);
 
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 

@@ -1,6 +1,5 @@
 #include <thread>
 #include "services/DiscoveryService.h"
-#include "services/DatabaseService.h"
 #include <iostream>
 #include <sstream>
 #include <chrono>
@@ -182,7 +181,7 @@ namespace hms_firetv {
                     * Reaching this line already proves it is a Fire TV: 8009 is
                     * open AND the wake endpoint answered, both of which work
                     * while asleep. */
-                   return DiscoveredDevice{ip, "", true, true};
+                   return DiscoveredDevice{ip, "", true, true, fetchDialUdn(ip)};
                 }));
         }
         for (auto& f: futures) {
@@ -199,22 +198,35 @@ namespace hms_firetv {
         return total;
     }
 
-    /* Same call LightningClient::wakeDevice makes: an empty POST to the
-     * wake endpoint on 8009. Discovery needs its own copy because it has to
-     * wake a candidate BEFORE it can identify it on 8080. */
-    bool DiscoveryService::wakeDevice(const std::string &ip) {
-        CURL *curl = curl_easy_init();
-        if (!curl) return false;
+    std::string DiscoveryService::parseDialUdn(const std::string &dd_xml) {
+        const std::string open = "<UDN>", close = "</UDN>";
+        auto start = dd_xml.find(open);
+        if (start == std::string::npos) return "";
+        start += open.size();
+        auto end = dd_xml.find(close, start);
+        if (end == std::string::npos) return "";
+        return dd_xml.substr(start, end - start);
+    }
 
-        std::string url = "http://" + ip + ":8009/apps/FireTVRemote";
+    /* Identity WITHOUT waking. Discovery used to POST the wake endpoint on
+     * 8009 and then test the pairing token on 8080, which only answers awake.
+     * That woke every candidate it tested, and a Fire TV that wakes also
+     * powers its TV on over HDMI-CEC: a Fire TV that was not the missing
+     * device got woken every scan and kept turning the living room TV back
+     * on. The DIAL description on 60000 answers while asleep and its UDN is
+     * unique per device, so nothing needs waking to tell devices apart. */
+    std::string DiscoveryService::fetchDialUdn(const std::string &ip) {
+        CURL *curl = curl_easy_init();
+        if (!curl) return "";
+
+        std::string url = "http://" + ip + ":60000/dd.xml";
         std::string response;
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
@@ -223,8 +235,8 @@ namespace hms_firetv {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         curl_easy_cleanup(curl);
 
-        return res == CURLE_OK &&
-               (http_code == 200 || http_code == 201 || http_code == 204);
+        if (res != CURLE_OK || http_code != 200) return "";
+        return parseDialUdn(response);
     }
 
     bool DiscoveryService::probeWakeEndpoint(const std::string &ip) {
@@ -250,128 +262,62 @@ namespace hms_firetv {
         return res == CURLE_OK && http_code > 0;
     }
 
-    bool DiscoveryService::probeLightningWithToken(const std::string &ip,
-                                                   const std::string &api_key,
-                                                   const std::string &client_token) {
-        if (client_token.empty()) return false;
-
-        CURL *curl = curl_easy_init();
-        if (!curl) return false;
-
-        std::string url = "https://" + ip + ":8080/v1/FireTV";
-        std::string response;
-
-        struct curl_slist *headers = nullptr;
-        headers = curl_slist_append(headers, ("X-Api-Key: " + api_key).c_str());
-        headers = curl_slist_append(headers, ("X-Client-Token: " + client_token).c_str());
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-
-        CURLcode res = curl_easy_perform(curl);
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
-        return res == CURLE_OK && http_code == 200;
-    }
-
+    /* Nothing here may wake a device (see fetchDialUdn). A device is known by
+     * its DIAL UDN, learned while it sits at its registered IP; when it goes
+     * missing, the UDN finds it at its new IP. A device whose UDN has not been
+     * learned yet is left alone: guessing meant waking strangers. */
     void DiscoveryService::matchAndUpdate(const std::vector<DiscoveredDevice> &discovered) {
-        auto devices = DeviceRepository::getInstance().getAllDevices();
+        auto &repo = DeviceRepository::getInstance();
+        auto devices = repo.getAllDevices();
 
         for (const auto &device: devices) {
-            // Check if device is still at its known IP
-            bool found_at_current = false;
+            const std::string known_udn = device.dial_udn.value_or("");
+
+            const DiscoveredDevice *at_ip = nullptr;
             for (const auto &d: discovered) {
                 if (d.ip_address == device.ip_address) {
-                    found_at_current = true;
+                    at_ip = &d;
                     break;
                 }
             }
 
-            if (found_at_current) {
-                DeviceRepository::getInstance().updateLastSeen(device.device_id, "online");
+            // Something answers at the registered IP. It is this device unless
+            // both UDNs are known and differ: then another device took the IP.
+            if (at_ip && (known_udn.empty() || at_ip->dial_udn.empty() ||
+                          at_ip->dial_udn == known_udn)) {
+                repo.updateLastSeen(device.device_id, "online");
+                if (known_udn.empty() && !at_ip->dial_udn.empty()) {
+                    repo.setDialUdn(device.device_id, at_ip->dial_udn);
+                    std::cout << "[DiscoveryService] '" << device.device_id
+                            << "' is " << at_ip->dial_udn << "\n";
+                }
                 continue;
             }
 
-            // Device not at known IP — try to find it at a new IP using its token
-            if (!device.client_token.has_value() || device.client_token->empty()) {
+            if (known_udn.empty()) {
+                std::cout << "[DiscoveryService] '" << device.device_id
+                        << "' not at " << device.ip_address
+                        << " and its UDN is not known yet; not searching\n";
                 continue;
             }
 
             for (const auto &d: discovered) {
-                if (!d.has_lightning) continue;
+                if (d.dial_udn != known_udn) continue;
 
-                // Skip IPs already assigned to other devices
-                bool ip_taken = false;
-                for (const auto &other: devices) {
-                    if (other.device_id != device.device_id &&
-                        other.ip_address == d.ip_address) {
-                        ip_taken = true;
-                        break;
-                    }
+                std::cout << "[DiscoveryService] Device '" << device.device_id
+                        << "' moved: " << device.ip_address
+                        << " -> " << d.ip_address << "\n";
+
+                Device moved = device;
+                moved.ip_address = d.ip_address;
+                moved.status = "online";
+                repo.updateDevice(moved);
+                repo.updateLastSeen(device.device_id, "online");
+
+                if (mqtt_client_) {
+                    mqtt_client_->publishAvailability(device.device_id, true);
                 }
-                if (ip_taken) continue;
-
-                /* Wake first. The token probe lives on 8080 and a sleeping
-                 * Fire TV does not listen there, so without this the identity
-                 * check fails on precisely the devices we are trying to find.
-                 * The token check itself is KEPT: with several Fire TVs on the
-                 * subnet it is the only thing stopping one device's identity
-                 * being handed to another.
-                 *
-                 * RETRY, do not assume one sleep is enough: a Fire TV coming out
-                 * of standby takes seconds to bring 8080 up, and a single 1.5s
-                 * wait silently lost the device for another 5 minutes. */
-                std::cout << "[DiscoveryService] '" << device.device_id
-                        << "' not at " << device.ip_address
-                        << ", testing candidate " << d.ip_address << "\n";
-
-                wakeDevice(d.ip_address);
-
-                bool identified = false;
-                for (int attempt = 1; attempt <= 3 && !identified; ++attempt) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-                    identified = probeLightningWithToken(d.ip_address,
-                                                         device.api_key,
-                                                         device.client_token.value());
-                    if (!identified)
-                        std::cout << "[DiscoveryService]   attempt " << attempt
-                                << "/3: " << d.ip_address
-                                << " did not answer for this token\n";
-                }
-
-                if (identified) {
-                    std::cout << "[DiscoveryService] Device '" << device.device_id
-                            << "' moved: " << device.ip_address
-                            << " -> " << d.ip_address << "\n";
-
-                    std::ostringstream query;
-                    query << "UPDATE fire_tv_devices SET "
-                            << "ip_address = '" << d.ip_address << "', "
-                            << "last_seen_at = NOW(), "
-                            << "status = 'online', "
-                            << "updated_at = NOW() "
-                            << "WHERE device_id = '" << device.device_id << "'";
-                    DatabaseService::getInstance().executeCommand(query.str());
-
-                    if (mqtt_client_) {
-                        mqtt_client_->publishAvailability(device.device_id, true);
-                    }
-
-                    break;
-                }
+                break;
             }
         }
     }

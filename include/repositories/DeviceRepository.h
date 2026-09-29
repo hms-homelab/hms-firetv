@@ -27,6 +27,7 @@ public:
                                const std::string& client_token);
     bool clearPairing(const std::string& device_id);
     bool updateLastSeen(const std::string& device_id, const std::string& status = "online");
+    bool setDialUdn(const std::string& device_id, const std::string& dial_udn);
     bool deviceExists(const std::string& device_id);
 
 private:

@@ -36,6 +36,7 @@ set(TEST_SOURCES
     test_apps_controller.cpp
     test_stats_controller.cpp
     test_apps_repository.cpp
+    test_discovery_service.cpp
 )
 
 set(UNIT_TEST_SOURCES

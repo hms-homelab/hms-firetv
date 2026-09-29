@@ -1,4 +1,5 @@
 #include <drogon/drogon.h>
+#include <cstdio>
 #include <iostream>
 #include <fstream>
 #include <csignal>
@@ -36,11 +37,16 @@ void signalHandler(int signal) {
 }
 
 int main() {
+    // Under systemd stdout is a pipe, so it is block-buffered: lines reached
+    // the journal in batches stamped with the flush time, not the time they
+    // happened. Line-buffer it so the journal's timestamps are real.
+    setvbuf(stdout, nullptr, _IOLBF, 0);
+
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "================================================================================\n";
-    std::cout << "Starting HMS FireTV v1.1.2\n";
+    std::cout << "Starting HMS FireTV v1.1.3\n";
     std::cout << "================================================================================\n";
 
     try {

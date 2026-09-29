@@ -13,6 +13,16 @@ PostgresDatabase::PostgresDatabase(const std::string& host, int port, const std:
 bool PostgresDatabase::connect() {
     try {
         DatabaseService::getInstance().initialize(host_, port_, name_, user_, password_);
+        // Added after schema.sql was first applied; existing databases need it too.
+        // Look first: ALTER needs table ownership even when the column is
+        // already there, and the service user is not always the owner.
+        auto has_udn = DatabaseService::getInstance().executeQuery(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name='fire_tv_devices' AND column_name='dial_udn'");
+        if (has_udn.empty()) {
+            DatabaseService::getInstance().executeCommand(
+                "ALTER TABLE fire_tv_devices ADD COLUMN IF NOT EXISTS dial_udn VARCHAR(100)");
+        }
         return true;
     } catch (const std::exception& e) {
         std::cerr << "[PostgresDB] connect failed: " << e.what() << std::endl;
@@ -46,6 +56,7 @@ Device PostgresDatabase::parseDevice(const pqxx::row& row) {
     d.status     = row["status"].as<std::string>();
     if (!row["client_token"].is_null()) d.client_token = row["client_token"].as<std::string>();
     if (!row["pin_code"].is_null()) d.pin_code = row["pin_code"].as<std::string>();
+    if (!row["dial_udn"].is_null()) d.dial_udn = row["dial_udn"].as<std::string>();
     if (!row["created_at"].is_null()) d.created_at = pgTs(row["created_at"].as<std::string>());
     if (!row["updated_at"].is_null()) d.updated_at = pgTs(row["updated_at"].as<std::string>());
     return d;
@@ -79,14 +90,14 @@ std::optional<Device> PostgresDatabase::createDevice(const Device& device) {
 
 std::optional<Device> PostgresDatabase::getDeviceById(const std::string& device_id) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices WHERE device_id=$1", {device_id});
+        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,dial_udn,created_at,updated_at FROM fire_tv_devices WHERE device_id=$1", {device_id});
     if (r.empty()) return std::nullopt;
     return parseDevice(r[0]);
 }
 
 std::vector<Device> PostgresDatabase::getAllDevices() {
     auto r = DatabaseService::getInstance().executeQuery(
-        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices ORDER BY created_at DESC");
+        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,dial_udn,created_at,updated_at FROM fire_tv_devices ORDER BY created_at DESC");
     std::vector<Device> out;
     for (const auto& row : r) out.push_back(parseDevice(row));
     return out;
@@ -94,7 +105,7 @@ std::vector<Device> PostgresDatabase::getAllDevices() {
 
 std::vector<Device> PostgresDatabase::getDevicesByStatus(const std::string& status) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at FROM fire_tv_devices WHERE status=$1 ORDER BY created_at DESC", {status});
+        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,dial_udn,created_at,updated_at FROM fire_tv_devices WHERE status=$1 ORDER BY created_at DESC", {status});
     std::vector<Device> out;
     for (const auto& row : r) out.push_back(parseDevice(row));
     return out;
@@ -124,6 +135,13 @@ bool PostgresDatabase::updateLastSeen(const std::string& device_id, const std::s
     return DatabaseService::getInstance().executeQueryParams(
         "UPDATE fire_tv_devices SET last_seen_at=NOW(),status=$1,updated_at=NOW() "
         "WHERE device_id=$2", {status, device_id}).empty()
+        ? DatabaseService::getInstance().isConnected() : true;
+}
+
+bool PostgresDatabase::setDialUdn(const std::string& device_id, const std::string& dial_udn) {
+    return DatabaseService::getInstance().executeQueryParams(
+        "UPDATE fire_tv_devices SET dial_udn=$1,updated_at=NOW() WHERE device_id=$2",
+        {dial_udn, device_id}).empty()
         ? DatabaseService::getInstance().isConnected() : true;
 }
 
