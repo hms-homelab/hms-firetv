@@ -104,7 +104,8 @@ protected:
      * @param client Lightning client
      * @param payload Full command payload with text field
      */
-    void handleTextInputCommand(LightningClient& client, const Json::Value& payload);
+    void handleTextInputCommand(const std::string& device_id, LightningClient& client,
+                                const Json::Value& payload);
 
     /**
      * Handle press-and-hold.

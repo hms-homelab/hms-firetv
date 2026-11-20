@@ -23,6 +23,22 @@ bool PostgresDatabase::connect() {
             DatabaseService::getInstance().executeCommand(
                 "ALTER TABLE fire_tv_devices ADD COLUMN IF NOT EXISTS dial_udn VARCHAR(100)");
         }
+        const char* has_text_sql =
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name='fire_tv_devices' AND column_name='text_endpoint'";
+        if (DatabaseService::getInstance().executeQuery(has_text_sql).empty()) {
+            DatabaseService::getInstance().executeCommand(
+                "ALTER TABLE fire_tv_devices ADD COLUMN IF NOT EXISTS text_endpoint VARCHAR(20)");
+        }
+        // Look again rather than trusting the ALTER: it needs table ownership.
+        has_text_endpoint_ = !DatabaseService::getInstance().executeQuery(has_text_sql).empty();
+        if (!has_text_endpoint_) {
+            std::cerr << "[PostgresDB] fire_tv_devices.text_endpoint is missing and could not be "
+                         "added (the service user does not own the table). Text input still "
+                         "works but will not remember its route. As the table owner run: "
+                         "ALTER TABLE fire_tv_devices ADD COLUMN text_endpoint VARCHAR(20)"
+                      << std::endl;
+        }
         return true;
     } catch (const std::exception& e) {
         std::cerr << "[PostgresDB] connect failed: " << e.what() << std::endl;
@@ -57,6 +73,7 @@ Device PostgresDatabase::parseDevice(const pqxx::row& row) {
     if (!row["client_token"].is_null()) d.client_token = row["client_token"].as<std::string>();
     if (!row["pin_code"].is_null()) d.pin_code = row["pin_code"].as<std::string>();
     if (!row["dial_udn"].is_null()) d.dial_udn = row["dial_udn"].as<std::string>();
+    if (!row["text_endpoint"].is_null()) d.text_endpoint = row["text_endpoint"].as<std::string>();
     if (!row["created_at"].is_null()) d.created_at = pgTs(row["created_at"].as<std::string>());
     if (!row["updated_at"].is_null()) d.updated_at = pgTs(row["updated_at"].as<std::string>());
     return d;
@@ -88,16 +105,23 @@ std::optional<Device> PostgresDatabase::createDevice(const Device& device) {
     return getDeviceById(device.device_id);
 }
 
+std::string PostgresDatabase::deviceColumns() const {
+    return std::string(
+        "id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,"
+        "status,last_seen_at,dial_udn,created_at,updated_at,") +
+        (has_text_endpoint_ ? "text_endpoint" : "NULL::varchar AS text_endpoint");
+}
+
 std::optional<Device> PostgresDatabase::getDeviceById(const std::string& device_id) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,dial_udn,created_at,updated_at FROM fire_tv_devices WHERE device_id=$1", {device_id});
+        "SELECT " + deviceColumns() + " FROM fire_tv_devices WHERE device_id=$1", {device_id});
     if (r.empty()) return std::nullopt;
     return parseDevice(r[0]);
 }
 
 std::vector<Device> PostgresDatabase::getAllDevices() {
     auto r = DatabaseService::getInstance().executeQuery(
-        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,dial_udn,created_at,updated_at FROM fire_tv_devices ORDER BY created_at DESC");
+        "SELECT " + deviceColumns() + " FROM fire_tv_devices ORDER BY created_at DESC");
     std::vector<Device> out;
     for (const auto& row : r) out.push_back(parseDevice(row));
     return out;
@@ -105,7 +129,7 @@ std::vector<Device> PostgresDatabase::getAllDevices() {
 
 std::vector<Device> PostgresDatabase::getDevicesByStatus(const std::string& status) {
     auto r = DatabaseService::getInstance().executeQueryParams(
-        "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,dial_udn,created_at,updated_at FROM fire_tv_devices WHERE status=$1 ORDER BY created_at DESC", {status});
+        "SELECT " + deviceColumns() + " FROM fire_tv_devices WHERE status=$1 ORDER BY created_at DESC", {status});
     std::vector<Device> out;
     for (const auto& row : r) out.push_back(parseDevice(row));
     return out;
@@ -142,6 +166,14 @@ bool PostgresDatabase::setDialUdn(const std::string& device_id, const std::strin
     return DatabaseService::getInstance().executeQueryParams(
         "UPDATE fire_tv_devices SET dial_udn=$1,updated_at=NOW() WHERE device_id=$2",
         {dial_udn, device_id}).empty()
+        ? DatabaseService::getInstance().isConnected() : true;
+}
+
+bool PostgresDatabase::setTextEndpoint(const std::string& device_id, const std::string& endpoint) {
+    if (!has_text_endpoint_) return false;  // column missing: see connect()
+    return DatabaseService::getInstance().executeQueryParams(
+        "UPDATE fire_tv_devices SET text_endpoint=$1,updated_at=NOW() WHERE device_id=$2",
+        {endpoint, device_id}).empty()
         ? DatabaseService::getInstance().isConnected() : true;
 }
 

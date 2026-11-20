@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS fire_tv_devices (
     adb_enabled BOOLEAN DEFAULT false,
     last_seen_at TIMESTAMP,
     dial_udn VARCHAR(100),
+    text_endpoint VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -40,6 +41,7 @@ COMMENT ON COLUMN fire_tv_devices.pin_code IS 'Temporary PIN for pairing process
 COMMENT ON COLUMN fire_tv_devices.pin_expires_at IS 'Expiration time for PIN';
 COMMENT ON COLUMN fire_tv_devices.status IS 'Device status: online, offline, pairing';
 COMMENT ON COLUMN fire_tv_devices.dial_udn IS 'DIAL UDN from :60000/dd.xml; identifies the device without waking it';
+COMMENT ON COLUMN fire_tv_devices.text_endpoint IS 'Text route this device accepted: keyboard (/v1/FireTV/keyboard) or text (/v1/FireTV/text); NULL until learned';
 
 -- ==============================================================================
 -- 2. Device Apps Table

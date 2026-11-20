@@ -70,6 +70,11 @@ bool DeviceRepository::setDialUdn(const std::string& device_id, const std::strin
     return db_->setDialUdn(device_id, dial_udn);
 }
 
+bool DeviceRepository::setTextEndpoint(const std::string& device_id, const std::string& endpoint) {
+    if (!db_) return false;
+    return db_->setTextEndpoint(device_id, endpoint);
+}
+
 bool DeviceRepository::deviceExists(const std::string& device_id) {
     if (!db_) return false;
     return db_->deviceExists(device_id);

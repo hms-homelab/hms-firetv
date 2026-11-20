@@ -1,5 +1,6 @@
 #include "api/CommandController.h"
 #include "services/DatabaseService.h"
+#include "services/TextInput.h"
 #include "services/TokenGuard.h"
 #include <drogon/HttpClient.h>
 #include <iostream>
@@ -478,8 +479,9 @@ void CommandController::sendText(const HttpRequestPtr& req,
 
         std::string text = (*json)["text"].asString();
 
-        // Execute send text command
-        CommandResult result = client->sendKeyboardInput(text);
+        // Send through the route this device takes (learned per device)
+        auto outcome = TextInput::send(device_id, *client, text);
+        const CommandResult& result = outcome.result;
 
         // Log to database
         Json::Value command_data;
@@ -491,6 +493,7 @@ void CommandController::sendText(const HttpRequestPtr& req,
         response["success"] = result.success;
         response["message"] = result.success ? "Text sent" : "Text send failed";
         response["text_length"] = static_cast<unsigned int>(text.length());
+        response["endpoint"] = outcome.endpoint;
         response["response_time_ms"] = result.response_time_ms;
 
         if (result.error.has_value()) {

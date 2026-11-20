@@ -25,6 +25,7 @@ struct Device {
     std::string status;                                          // online|offline|pairing|error
     std::optional<std::chrono::system_clock::time_point> last_seen_at;    // Last successful command
     std::optional<std::string> dial_udn;                         // DIAL UDN from :60000/dd.xml (answers while asleep)
+    std::optional<std::string> text_endpoint;                    // "keyboard" | "text": which text route this device took; unset = not learned
     std::chrono::system_clock::time_point created_at;
     std::chrono::system_clock::time_point updated_at;
 
@@ -90,6 +91,10 @@ struct Device {
 
         if (dial_udn.has_value()) {
             json["dial_udn"] = dial_udn.value();
+        }
+
+        if (text_endpoint.has_value()) {
+            json["text_endpoint"] = text_endpoint.value();
         }
 
         auto created_time_t = std::chrono::system_clock::to_time_t(created_at);

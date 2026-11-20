@@ -105,20 +105,25 @@ CREATE TABLE IF NOT EXISTS fire_tv_devices (
     status TEXT NOT NULL DEFAULT 'offline',
     last_seen_at TEXT,
     dial_udn TEXT,
+    text_endpoint TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 ))");
-    // Older database files predate dial_udn. SQLite has no ADD COLUMN IF NOT
-    // EXISTS, so look before adding rather than logging an error every start.
+    // Older database files predate dial_udn and text_endpoint. SQLite has no
+    // ADD COLUMN IF NOT EXISTS, so look before adding rather than logging an
+    // error every start.
     {
         StmtGuard g;
-        bool has_udn = false;
+        bool has_udn = false, has_text = false;
         if (sqlite3_prepare_v2(db_, "PRAGMA table_info(fire_tv_devices)", -1, &g.s, nullptr) == SQLITE_OK) {
             while (sqlite3_step(g.s) == SQLITE_ROW) {
-                if (col_str(g.s, 1) == "dial_udn") { has_udn = true; break; }
+                std::string col = col_str(g.s, 1);
+                if (col == "dial_udn") has_udn = true;
+                if (col == "text_endpoint") has_text = true;
             }
         }
         if (!has_udn) exec("ALTER TABLE fire_tv_devices ADD COLUMN dial_udn TEXT");
+        if (!has_text) exec("ALTER TABLE fire_tv_devices ADD COLUMN text_endpoint TEXT");
     }
     exec("CREATE INDEX IF NOT EXISTS idx_ftd_device_id ON fire_tv_devices(device_id)");
     exec("CREATE INDEX IF NOT EXISTS idx_ftd_status ON fire_tv_devices(status)");
@@ -186,7 +191,8 @@ Device SQLiteDatabase::parseDevice(sqlite3_stmt* s) {
     // rather than SELECT *, so these indices cannot drift with the physical
     // column order of an older database file:
     //   id, device_id, name, ip_address, api_key, client_token, pin_code,
-    //   pin_expires_at, status, last_seen_at, created_at, updated_at, dial_udn
+    //   pin_expires_at, status, last_seen_at, created_at, updated_at, dial_udn,
+    //   text_endpoint
     Device d;
     d.id           = sqlite3_column_int(s, 0);
     d.device_id    = col_str(s, 1);
@@ -201,6 +207,7 @@ Device SQLiteDatabase::parseDevice(sqlite3_stmt* s) {
     d.created_at    = parseTs(col_text(s, 10));
     d.updated_at    = parseTs(col_text(s, 11));
     if (!col_is_null(s, 12)) d.dial_udn = col_str(s, 12);
+    if (!col_is_null(s, 13)) d.text_endpoint = col_str(s, 13);
     return d;
 }
 
@@ -240,7 +247,7 @@ std::optional<Device> SQLiteDatabase::createDevice(const Device& device) {
 
 std::optional<Device> SQLiteDatabase::getDeviceById(const std::string& device_id) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at,dial_udn FROM fire_tv_devices WHERE device_id=?";
+    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at,dial_udn,text_endpoint FROM fire_tv_devices WHERE device_id=?";
     StmtGuard g;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return std::nullopt;
     sqlite3_bind_text(g.s, 1, device_id.c_str(), -1, SQLITE_TRANSIENT);
@@ -250,7 +257,7 @@ std::optional<Device> SQLiteDatabase::getDeviceById(const std::string& device_id
 
 std::vector<Device> SQLiteDatabase::getAllDevices() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at,dial_udn FROM fire_tv_devices ORDER BY created_at DESC";
+    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at,dial_udn,text_endpoint FROM fire_tv_devices ORDER BY created_at DESC";
     StmtGuard g;
     std::vector<Device> out;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return out;
@@ -260,7 +267,7 @@ std::vector<Device> SQLiteDatabase::getAllDevices() {
 
 std::vector<Device> SQLiteDatabase::getDevicesByStatus(const std::string& status) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at,dial_udn FROM fire_tv_devices WHERE status=? ORDER BY created_at DESC";
+    const char* sql = "SELECT id,device_id,name,ip_address,api_key,client_token,pin_code,pin_expires_at,status,last_seen_at,created_at,updated_at,dial_udn,text_endpoint FROM fire_tv_devices WHERE status=? ORDER BY created_at DESC";
     StmtGuard g;
     std::vector<Device> out;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return out;
@@ -320,6 +327,17 @@ bool SQLiteDatabase::setDialUdn(const std::string& device_id, const std::string&
     StmtGuard g;
     if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return false;
     sqlite3_bind_text(g.s, 1, dial_udn.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(g.s, 2, device_id.c_str(), -1, SQLITE_TRANSIENT);
+    return sqlite3_step(g.s) == SQLITE_DONE;
+}
+
+bool SQLiteDatabase::setTextEndpoint(const std::string& device_id, const std::string& endpoint) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const char* sql =
+        "UPDATE fire_tv_devices SET text_endpoint=?,updated_at=CURRENT_TIMESTAMP WHERE device_id=?";
+    StmtGuard g;
+    if (sqlite3_prepare_v2(db_, sql, -1, &g.s, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(g.s, 1, endpoint.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(g.s, 2, device_id.c_str(), -1, SQLITE_TRANSIENT);
     return sqlite3_step(g.s) == SQLITE_DONE;
 }

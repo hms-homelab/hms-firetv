@@ -215,12 +215,22 @@ public value; the client token from pairing is the only secret.
 | `POST /v1/FireTV/app/<package>` | launch an app |
 | `POST /v1/FireTV/voiceCommand?action=start\|stop` | **bookends a voice stream** |
 | `GET  /v1/FireTV/keyboard` | keyboard state `{state, mode, text}` |
-| `POST /v1/FireTV/keyboard` | body `{"text":"..."}`, types the whole string into the focused field |
+| `POST /v1/FireTV/keyboard` | body `{"text":"..."}`, types the whole string into the focused field (current Fire OS 8) |
+| `POST /v1/FireTV/text` | body `{"text":"..."}`, the older text route some firmware still needs |
 | `POST /v1/FireTV/pin/display`, `/pin/verify` | PIN pairing; verify answers `{"description":"<token>"}`, or `""` for a wrong PIN |
 | `POST http://{ip}:8009/apps/FireTVRemote` | wake — plain HTTP, works while asleep |
 
 `power` toggles the TV over HDMI-CEC; the device does not report TV power
 state, so it is a toggle, never a discrete on or off.
+
+Firmware disagrees on the text route. On current Fire OS 8, `/keyboard` types
+the text and `/text` answers 200 without typing anything; other firmware
+rejects `/keyboard` and needs `/text`. Text is sent to the route that worked
+for that device last time (`/keyboard` when nothing is known yet). If the
+device answers that route with an error status, the other route is tried, and
+whichever one works is remembered in `fire_tv_devices.text_endpoint`. A 401/403
+or no answer at all does not trigger the fallback. The REST `text` response
+reports the route used in `endpoint`.
 
 ### Client tokens and re-pairing
 

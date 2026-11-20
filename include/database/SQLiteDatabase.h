@@ -27,6 +27,7 @@ public:
     bool deviceExists(const std::string& device_id) override;
     bool updateLastSeen(const std::string& device_id, const std::string& status) override;
     bool setDialUdn(const std::string& device_id, const std::string& dial_udn) override;
+    bool setTextEndpoint(const std::string& device_id, const std::string& endpoint) override;
     bool setPairingPin(const std::string& device_id, const std::string& pin_code,
                        int expires_secs) override;
     bool verifyPinAndSetToken(const std::string& device_id, const std::string& pin_code,

@@ -37,6 +37,18 @@
   from inside the wake, recursing without bound.
 
 ### Added
+- Text input learns which route each device takes. It tries
+  `/v1/FireTV/keyboard` (or the route that worked last time) and, if the
+  device answers with an error status, `/v1/FireTV/text`. The route that
+  works is stored per device. Firmware disagrees here: current Fire OS 8 types
+  only through `/keyboard`, while some other firmware needs `/text`. A 401/403
+  or no answer does not trigger the fallback. The REST `text` response
+  includes the `endpoint` used.
+- `text_endpoint` column on `fire_tv_devices` (NULL until learned). It is
+  added automatically on start for SQLite, and for PostgreSQL when the
+  service user owns the table. Otherwise the service still starts and sends
+  text, but does not remember the route until the owner runs
+  `ALTER TABLE fire_tv_devices ADD COLUMN text_endpoint VARCHAR(20)`.
 - `GET /api/devices/{id}/pair/status?verify=true` checks the token against
   the device and adds `token_check` (`valid`, `rejected`, `inconclusive`).
 - `/pair/start` on a device that still holds a token checks it first and

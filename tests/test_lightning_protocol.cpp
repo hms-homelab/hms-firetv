@@ -10,9 +10,12 @@
 #include "clients/LightningClient.h"
 #include "database/SQLiteDatabase.h"
 #include "repositories/DeviceRepository.h"
+#include "services/TextInput.h"
 #include "services/TokenGuard.h"
 
+#include <cstdio>
 #include <drogon/drogon.h>
+#include <sqlite3.h>
 #include <json/json.h>
 #include <memory>
 #include <sstream>
@@ -296,6 +299,126 @@ TEST_F(PairingRevalidationTest, StartRefusesWhileTheTokenIsGoodOrUnchecked) {
 
     EXPECT_EQ(checks, 2);
     EXPECT_EQ(tokenOnFile(), "token-A");
+}
+
+// ============================================================================
+// TEXT INPUT: keyboard first, fall back to text, remember per device
+// ============================================================================
+
+class TextInputTest : public TokenGuardTest {
+protected:
+    std::vector<std::string> tried;
+
+    // A device that answers each route with the given status.
+    TextInput::Sender device(int keyboard_status, int text_status) {
+        return [this, keyboard_status, text_status](const std::string& endpoint) {
+            tried.push_back(endpoint);
+            if (endpoint == "keyboard") return keyboard_status ? answer(keyboard_status) : noAnswer();
+            return text_status ? answer(text_status) : noAnswer();
+        };
+    }
+
+    std::optional<std::string> learned() {
+        auto d = DeviceRepository::getInstance().getDeviceById(id);
+        return d.has_value() ? d->text_endpoint : std::nullopt;
+    }
+};
+
+TEST_F(TextInputTest, OrderPutsTheLearnedRouteFirst) {
+    EXPECT_EQ(TextInput::order(std::nullopt), (std::vector<std::string>{"keyboard", "text"}));
+    EXPECT_EQ(TextInput::order(std::string("keyboard")), (std::vector<std::string>{"keyboard", "text"}));
+    EXPECT_EQ(TextInput::order(std::string("text")), (std::vector<std::string>{"text", "keyboard"}));
+    EXPECT_EQ(TextInput::order(std::string("garbage")), (std::vector<std::string>{"keyboard", "text"}));
+}
+
+TEST_F(TextInputTest, UnknownStartsWithKeyboardAndRemembersIt) {
+    EXPECT_FALSE(learned().has_value());
+    auto out = TextInput::send(id, device(200, 200));
+    EXPECT_TRUE(out.result.success);
+    EXPECT_EQ(out.endpoint, "keyboard");
+    EXPECT_EQ(tried, (std::vector<std::string>{"keyboard"}));
+    EXPECT_EQ(learned(), std::optional<std::string>("keyboard"));
+}
+
+TEST_F(TextInputTest, KeyboardErrorFallsBackToTextAndRemembersText) {
+    auto out = TextInput::send(id, device(404, 200));
+    EXPECT_TRUE(out.result.success);
+    EXPECT_EQ(out.endpoint, "text");
+    EXPECT_EQ(tried, (std::vector<std::string>{"keyboard", "text"}));
+    EXPECT_EQ(learned(), std::optional<std::string>("text"));
+
+    // Next time text goes first and keyboard is not tried at all.
+    tried.clear();
+    auto again = TextInput::send(id, device(404, 200));
+    EXPECT_TRUE(again.result.success);
+    EXPECT_EQ(tried, (std::vector<std::string>{"text"}));
+}
+
+TEST_F(TextInputTest, LearnedRouteThatStopsWorkingIsReplaced) {
+    ASSERT_TRUE(db->setTextEndpoint(id, "text"));
+    auto out = TextInput::send(id, device(200, 400));
+    EXPECT_TRUE(out.result.success);
+    EXPECT_EQ(tried, (std::vector<std::string>{"text", "keyboard"}));
+    EXPECT_EQ(learned(), std::optional<std::string>("keyboard"));
+}
+
+TEST_F(TextInputTest, BothFailingLeavesWhatWasLearned) {
+    ASSERT_TRUE(db->setTextEndpoint(id, "keyboard"));
+    auto out = TextInput::send(id, device(500, 500));
+    EXPECT_FALSE(out.result.success);
+    EXPECT_EQ(out.result.status_code, 500);
+    EXPECT_EQ(tried.size(), 2u);
+    EXPECT_EQ(learned(), std::optional<std::string>("keyboard"));
+}
+
+TEST_F(TextInputTest, NoFallbackOnAuthRejectionOrNoAnswer) {
+    auto rejected = TextInput::send(id, device(403, 200));
+    EXPECT_FALSE(rejected.result.success);
+    EXPECT_EQ(tried, (std::vector<std::string>{"keyboard"}));
+
+    tried.clear();
+    auto asleep = TextInput::send(id, device(0, 200));
+    EXPECT_FALSE(asleep.result.success);
+    EXPECT_EQ(tried, (std::vector<std::string>{"keyboard"}));
+
+    EXPECT_FALSE(learned().has_value());
+}
+
+TEST(SQLiteMigration, OldFileGainsTextEndpointAndStillReads) {
+    // A database file from before dial_udn and text_endpoint existed.
+    std::string path = ::testing::TempDir() + "hms_firetv_migration_test.db";
+    std::remove(path.c_str());
+    {
+        sqlite3* raw = nullptr;
+        ASSERT_EQ(sqlite3_open(path.c_str(), &raw), SQLITE_OK);
+        const char* old_schema =
+            "CREATE TABLE fire_tv_devices ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT UNIQUE NOT NULL,"
+            " name TEXT NOT NULL, ip_address TEXT NOT NULL,"
+            " api_key TEXT NOT NULL DEFAULT '0987654321', client_token TEXT, pin_code TEXT,"
+            " pin_expires_at TEXT, status TEXT NOT NULL DEFAULT 'offline', last_seen_at TEXT,"
+            " created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP);"
+            "INSERT INTO fire_tv_devices (device_id,name,ip_address,client_token)"
+            " VALUES ('old_dev','Old','192.0.2.30','tok');";
+        ASSERT_EQ(sqlite3_exec(raw, old_schema, nullptr, nullptr, nullptr), SQLITE_OK);
+        sqlite3_close(raw);
+    }
+
+    auto migrated = std::make_shared<SQLiteDatabase>(path);
+    ASSERT_TRUE(migrated->connect());
+    auto before = migrated->getDeviceById("old_dev");
+    ASSERT_TRUE(before.has_value());
+    EXPECT_EQ(before->name, "Old");
+    EXPECT_EQ(before->client_token.value_or(""), "tok");
+    EXPECT_FALSE(before->text_endpoint.has_value());
+
+    ASSERT_TRUE(migrated->setTextEndpoint("old_dev", "text"));
+    auto after = migrated->getDeviceById("old_dev");
+    ASSERT_TRUE(after.has_value());
+    EXPECT_EQ(after->text_endpoint.value_or(""), "text");
+
+    migrated.reset();
+    std::remove(path.c_str());
 }
 
 int main(int argc, char** argv) {

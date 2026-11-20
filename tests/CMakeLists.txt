@@ -69,6 +69,7 @@ foreach(test_src ${TEST_SOURCES})
         ${CMAKE_SOURCE_DIR}/src/mqtt/DiscoveryPublisher.cpp
         ${CMAKE_SOURCE_DIR}/src/services/DiscoveryService.cpp
         ${CMAKE_SOURCE_DIR}/src/services/TokenGuard.cpp
+        ${CMAKE_SOURCE_DIR}/src/services/TextInput.cpp
     )
 
     target_link_libraries(${test_name}

@@ -299,6 +299,17 @@ public:
      */
     CommandResult sendKeyboardInput(const std::string& text);
 
+    /**
+     * POST {"text": text} to one text route.
+     *
+     * @param endpoint "keyboard" -> /v1/FireTV/keyboard (whole string; what
+     *                 works on current Fire OS 8 firmware) or "text" ->
+     *                 /v1/FireTV/text (the older route some firmware still
+     *                 needs). Which one a device takes is learned per device
+     *                 by TextInput.
+     */
+    CommandResult sendTextTo(const std::string& endpoint, const std::string& text);
+
     // ========================================================================
     // HEALTH CHECK
     // ========================================================================

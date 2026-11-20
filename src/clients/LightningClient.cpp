@@ -390,6 +390,10 @@ CommandResult LightningClient::launchApp(const std::string& package_name) {
 // ============================================================================
 
 CommandResult LightningClient::sendKeyboardInput(const std::string& text) {
+    return sendTextTo("keyboard", text);
+}
+
+CommandResult LightningClient::sendTextTo(const std::string& endpoint, const std::string& text) {
     // Build JSON payload
     Json::Value payload;
     payload["text"] = text;
@@ -397,14 +401,15 @@ CommandResult LightningClient::sendKeyboardInput(const std::string& text) {
     Json::StreamWriterBuilder writer;
     std::string json_body = Json::writeString(writer, payload);
 
-    std::string url = base_url_ + "/v1/FireTV/keyboard";
+    const std::string route = (endpoint == "text") ? "text" : "keyboard";
+    std::string url = base_url_ + "/v1/FireTV/" + route;
     auto result = executePost(url, json_body);
 
     if (result.success) {
-        std::cout << "[LightningClient] Keyboard input sent ("
+        std::cout << "[LightningClient] Text sent via /" << route << " ("
                   << result.response_time_ms << "ms)" << std::endl;
     } else {
-        std::cerr << "[LightningClient] Keyboard input failed: "
+        std::cerr << "[LightningClient] Text via /" << route << " failed: "
                   << result.status_code << std::endl;
     }
 

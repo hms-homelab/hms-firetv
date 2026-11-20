@@ -30,6 +30,8 @@ public:
     virtual bool deviceExists(const std::string& device_id) = 0;
     virtual bool updateLastSeen(const std::string& device_id, const std::string& status) = 0;
     virtual bool setDialUdn(const std::string& device_id, const std::string& dial_udn) = 0;
+    /** Remember which text route ("keyboard" | "text") the device accepted. */
+    virtual bool setTextEndpoint(const std::string& device_id, const std::string& endpoint) = 0;
     virtual bool setPairingPin(const std::string& device_id, const std::string& pin_code,
                                int expires_secs) = 0;
     virtual bool verifyPinAndSetToken(const std::string& device_id, const std::string& pin_code,

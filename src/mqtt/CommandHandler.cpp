@@ -1,6 +1,7 @@
 #include "mqtt/CommandHandler.h"
 #include "repositories/AppsRepository.h"
 #include "services/AppSyncService.h"
+#include "services/TextInput.h"
 #include "services/TokenGuard.h"
 #include "services/VoiceService.h"
 #include <algorithm>
@@ -79,7 +80,7 @@ void CommandHandler::handleCommand(const std::string& device_id, const Json::Val
     } else if (command == "select_source" || command == "launch_app") {
         handleAppLaunchCommand(device_id, *client, payload);
     } else if (command == "send_text" || command == "keyboard_input") {
-        handleTextInputCommand(*client, payload);
+        handleTextInputCommand(device_id, *client, payload);
     } else if (command == "hold") {
         handleHoldCommand(*client, payload);
     } else if (command == "key_down") {
@@ -524,7 +525,8 @@ bool CommandHandler::ensureDeviceAwake(LightningClient& client) {
     return false;
 }
 
-void CommandHandler::handleTextInputCommand(LightningClient& client, const Json::Value& payload) {
+void CommandHandler::handleTextInputCommand(const std::string& device_id, LightningClient& client,
+                                            const Json::Value& payload) {
     std::string text;
 
     // Check for text field (from text entity)
@@ -545,12 +547,13 @@ void CommandHandler::handleTextInputCommand(LightningClient& client, const Json:
         return;
     }
 
-    // Send keyboard input
-    std::cout << "[CommandHandler] Sending keyboard input: " << text << std::endl;
-    auto result = client.sendKeyboardInput(text);
+    // Send through the route this device takes (learned per device)
+    std::cout << "[CommandHandler] Sending text input (" << text.size() << " bytes)" << std::endl;
+    auto outcome = TextInput::send(device_id, client, text);
+    const auto& result = outcome.result;
 
     if (result.success) {
-        std::cout << "[CommandHandler] ✅ Text input sent successfully ("
+        std::cout << "[CommandHandler] ✅ Text input sent via /" << outcome.endpoint << " ("
                   << result.response_time_ms << "ms)" << std::endl;
     } else {
         std::cerr << "[CommandHandler] ❌ Text input failed: "

@@ -28,6 +28,7 @@ public:
     bool deviceExists(const std::string& device_id) override;
     bool updateLastSeen(const std::string& device_id, const std::string& status) override;
     bool setDialUdn(const std::string& device_id, const std::string& dial_udn) override;
+    bool setTextEndpoint(const std::string& device_id, const std::string& endpoint) override;
     bool setPairingPin(const std::string& device_id, const std::string& pin_code,
                        int expires_secs) override;
     bool verifyPinAndSetToken(const std::string& device_id, const std::string& pin_code,
@@ -59,6 +60,13 @@ private:
     std::string name_;
     std::string user_;
     std::string password_;
+
+    /* text_endpoint arrived after schema.sql was first applied, and the
+     * service user cannot always ALTER the table. When the column is missing
+     * the SELECTs read NULL in its place instead of failing every device
+     * read, and setTextEndpoint() does nothing. */
+    bool has_text_endpoint_ = false;
+    std::string deviceColumns() const;
 
 #ifdef WITH_POSTGRESQL
     Device parseDevice(const pqxx::row& row);
