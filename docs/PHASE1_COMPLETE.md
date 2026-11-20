@@ -78,7 +78,7 @@ $ make -j$(nproc)
 [100%] Built target hms_firetv
 
 $ ls -lh hms_firetv
--rwxrwxr-x 1 aamat aamat 2.4M Feb  3 10:47 hms_firetv
+-rwxrwxr-x 1 hms hms 2.4M Feb  3 10:47 hms_firetv
 ```
 
 **Runtime Test:**
@@ -173,7 +173,7 @@ Dependencies:
 
 4. **Database Configuration**
    - Add DB_* environment variables
-   - Connect to existing `firetv` database on 192.168.1.15:5432
+   - Connect to existing `firetv` database on hub.local:5432
    - User: `firetv_user`
    - Password: `$(DB_PASSWORD)`
 
@@ -283,7 +283,7 @@ The foundation is solid. We can now proceed to Phase 2 (Database Layer) with con
 **Next Command:**
 ```bash
 # Ready to start Phase 2
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 # Begin implementing DatabaseService.h and Device.h
 ```
 

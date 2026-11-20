@@ -18,7 +18,7 @@ MQTT acts as a **message bus** that decouples services. Any application can:
 {
   trigger: "geofence_exit",
   action: "mqtt_publish",
-  topic: "maestro_hub/firetv/livingroom_colada/set",
+  topic: "<prefix>/livingroom_colada/set",
   payload: {
     "command": "turn_off"
   }
@@ -34,7 +34,7 @@ Alexa/Google Home
     ↓
 Custom Skill/Action
     ↓
-MQTT Publish: maestro_hub/firetv/livingroom_colada/set
+MQTT Publish: <prefix>/livingroom_colada/set
     ↓
 HMS FireTV receives command
     ↓
@@ -61,8 +61,8 @@ def on_message(client, userdata, msg):
 
 client = mqtt.Client()
 client.on_message = on_message
-client.connect("192.168.1.15", 1883)
-client.subscribe("maestro_hub/firetv/livingroom_colada/state")
+client.connect("hub.local", 1883)
+client.subscribe("<prefix>/livingroom_colada/state")
 client.loop_forever()
 ```
 
@@ -107,11 +107,11 @@ def on_message(client, userdata, msg):
 
 ```python
 def on_doorbell_ring():
-    devices = ["livingroom_colada", "bedroom_colada", "albin_colada"]
+    devices = ["livingroom_colada", "bedroom_colada", "office_colada"]
 
     for device in devices:
         mqtt_client.publish(
-            f"maestro_hub/firetv/{device}/set",
+            f"<prefix>/{device}/set",
             json.dumps({"command": "media_pause"})
         )
 ```
@@ -122,13 +122,13 @@ def on_doorbell_ring():
 
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/#" -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/#" -v
 
 # Output:
-maestro_hub/firetv/livingroom_colada/set {"command": "volume_up"}
-maestro_hub/firetv/livingroom_colada/state {"state": "playing"}
-maestro_hub/firetv/livingroom_colada/availability online
+<prefix>/livingroom_colada/set {"command": "volume_up"}
+<prefix>/livingroom_colada/state {"state": "playing"}
+<prefix>/livingroom_colada/availability online
 ```
 
 ### 8. Conditional Commands
@@ -139,7 +139,7 @@ maestro_hub/firetv/livingroom_colada/availability online
 // N8N workflow
 if (home_assistant.person.state === "home") {
     mqtt.publish(
-        "maestro_hub/firetv/livingroom_colada/set",
+        "<prefix>/livingroom_colada/set",
         JSON.stringify({"command": "turn_on"})
     );
 }
@@ -158,7 +158,7 @@ commands = [
 ]
 
 for cmd in commands:
-    mqtt_client.publish("maestro_hub/firetv/livingroom_colada/set", json.dumps(cmd))
+    mqtt_client.publish("<prefix>/livingroom_colada/set", json.dumps(cmd))
     time.sleep(1)  # Wait between commands
 ```
 
@@ -202,15 +202,15 @@ Fire TV Device
 
 ### Command Topics (Publish to control)
 ```
-maestro_hub/firetv/{device_id}/set
-maestro_hub/firetv/{device_id}/launch_app
-maestro_hub/firetv/{device_id}/navigation
+<prefix>/{device_id}/set
+<prefix>/{device_id}/launch_app
+<prefix>/{device_id}/navigation
 ```
 
 ### State Topics (Subscribe to monitor)
 ```
-maestro_hub/firetv/{device_id}/state
-maestro_hub/firetv/{device_id}/availability
+<prefix>/{device_id}/state
+<prefix>/{device_id}/availability
 ```
 
 ### Discovery Topics (Subscribe for device detection)
@@ -221,7 +221,7 @@ homeassistant/media_player/{device_id}/config
 ## Security Considerations
 
 ### Current Setup
-- MQTT broker requires authentication (aamat/$(MQTT_PASS))
+- MQTT broker requires authentication (hms/$(MQTT_PASS))
 - No encryption (local network only)
 - No ACLs (all users can publish/subscribe to all topics)
 
@@ -230,10 +230,10 @@ homeassistant/media_player/{device_id}/config
 2. **Per-service credentials**: Different username/password per service
 3. **ACLs**: Restrict topics per user
    ```
-   user hms_firetv can publish maestro_hub/firetv/#
+   user hms_firetv can publish <prefix>/#
    user hms_firetv can subscribe homeassistant/#
-   user home_assistant can publish maestro_hub/firetv/+/set
-   user home_assistant can subscribe maestro_hub/firetv/#
+   user home_assistant can publish <prefix>/+/set
+   user home_assistant can subscribe <prefix>/#
    ```
 4. **Command validation**: HMS FireTV validates all incoming commands
 5. **Rate limiting**: Prevent command flooding
@@ -274,21 +274,21 @@ All services communicate via MQTT - no direct coupling!
 ### Setup
 ```bash
 # Terminal 1: Monitor all traffic
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/#" -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/#" -v
 
 # Terminal 2: HMS FireTV service
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 ./hms_firetv
 
 # Terminal 3: Simulate Home Assistant
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "volume_up"}'
 
 # Terminal 4: Simulate N8N workflow
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "turn_on"}'
 ```
 

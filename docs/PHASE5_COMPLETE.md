@@ -43,9 +43,9 @@ bool removeDevice(device_id)
 
 **Topic Pattern:**
 ```
-maestro_hub/firetv/{device_id}/set          # Commands (subscribe)
-maestro_hub/firetv/{device_id}/state        # State (publish)
-maestro_hub/firetv/{device_id}/availability # Availability (publish)
+<prefix>/{device_id}/set          # Commands (subscribe)
+<prefix>/{device_id}/state        # State (publish)
+<prefix>/{device_id}/availability # Availability (publish)
 homeassistant/media_player/{device_id}/config  # Discovery (publish)
 ```
 
@@ -72,9 +72,9 @@ homeassistant/media_player/{device_id}/config  # Discovery (publish)
     "model": "Fire TV",
     "connections": [["ip", "192.168.1.63"]]
   },
-  "state_topic": "maestro_hub/firetv/livingroom_colada/state",
-  "command_topic": "maestro_hub/firetv/livingroom_colada/set",
-  "availability_topic": "maestro_hub/firetv/livingroom_colada/availability",
+  "state_topic": "<prefix>/livingroom_colada/state",
+  "command_topic": "<prefix>/livingroom_colada/set",
+  "availability_topic": "<prefix>/livingroom_colada/availability",
   "supported_features": ["play", "pause", "volume_step", ...]
 }
 ```
@@ -164,24 +164,24 @@ GET /health
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Home Assistant                              │
-│                   (192.168.1.7:8123)                            │
+│                   (homeassistant.local:8123)                            │
 └───────────────────┬─────────────────────────────────────────────┘
                     │
                     │ MQTT (Commands)
                     ▼
         ┌───────────────────────────┐
         │      EMQX Broker          │
-        │   (192.168.1.15:1883)     │
+        │   (hub.local:1883)     │
         └───────────┬───────────────┘
                     │
-                    │ Subscribe: maestro_hub/firetv/+/set
-                    │ Publish: maestro_hub/firetv/+/state
-                    │ Publish: maestro_hub/firetv/+/availability
+                    │ Subscribe: <prefix>/+/set
+                    │ Publish: <prefix>/+/state
+                    │ Publish: <prefix>/+/availability
                     │ Publish: homeassistant/media_player/+/config
                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    HMS FireTV Service                            │
-│                  (192.168.1.15:8888)                            │
+│                  (hub.local:8888)                            │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │ MQTTClient   │  │  Discovery   │  │   Command    │         │
@@ -315,16 +315,16 @@ Service startup script with environment variables:
 
 ```bash
 # Database
-DB_HOST=192.168.1.15
+DB_HOST=hub.local
 DB_PORT=5432
 DB_NAME=firetv
 DB_USER=firetv_user
 DB_PASSWORD=$(DB_PASSWORD)
 
 # MQTT
-MQTT_BROKER_HOST=192.168.1.15
+MQTT_BROKER_HOST=hub.local
 MQTT_BROKER_PORT=1883
-MQTT_USER=aamat
+MQTT_USER=hms
 MQTT_PASS=$(MQTT_PASS)
 
 # API
@@ -337,9 +337,9 @@ LOG_LEVEL=info
 ### MQTT Broker
 
 **EMQX Configuration:**
-- Host: 192.168.1.15
+- Host: hub.local
 - Port: 1883 (native)
-- Auth: username/password (aamat/$(MQTT_PASS))
+- Auth: username/password (hms/$(MQTT_PASS))
 - QoS: 1 (at least once)
 - Retain: Yes (for discovery/availability)
 
@@ -493,7 +493,7 @@ hms-firetv/
 ├── src/main.cpp                 # MQTT integration added
 └── CMakeLists.txt               # Already had PahoMqttCpp
 
-maestro_hub/
+(hub repository)/
 └── docker-compose.yml           # Commented out colada-lightning
 ```
 

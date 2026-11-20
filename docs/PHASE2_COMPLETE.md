@@ -59,7 +59,7 @@ Phase 2 has successfully implemented the complete database layer for HMS FireTV,
 ### 4. Main Application Updates (`src/main.cpp`)
 - **Changes**:
   - Added DatabaseService initialization with environment variables:
-    - `DB_HOST` (default: 192.168.1.15)
+    - `DB_HOST` (default: hub.local)
     - `DB_PORT` (default: 5432)
     - `DB_NAME` (default: firetv)
     - `DB_USER` (default: firetv_user)
@@ -110,7 +110,7 @@ Testing DeviceRepository...
 
 1. Testing getAllDevices()...
    Found 3 devices in database
-   - albin_colada (Albin Fire TV (Colada)) - online
+   - office_colada (Office Fire TV (Colada)) - online
    - bedroom_colada (Bedroom Fire TV (Colada)) - online
    - livingroom_colada (Living Room Fire TV (Colada)) - online
 
@@ -148,7 +148,7 @@ WHERE device_id = 'test_cpp_device';
 
 ## Database Schema
 
-**Database**: firetv @ 192.168.1.15:5432
+**Database**: firetv @ hub.local:5432
 **User**: firetv_user / Password: $(DB_PASSWORD)
 
 **Table**: fire_tv_devices
@@ -272,7 +272,7 @@ cd hms-firetv/build
 cmake .. && make -j$(nproc)
 
 # Run service
-DB_HOST=192.168.1.15 DB_PORT=5432 DB_NAME=firetv \
+DB_HOST=hub.local DB_PORT=5432 DB_NAME=firetv \
 DB_USER=firetv_user DB_PASSWORD=$(DB_PASSWORD) \
 API_PORT=9888 ./hms_firetv
 
@@ -289,7 +289,7 @@ g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
 ./test_device_repo
 
 # Verify in database
-PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.1.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h hub.local \
   -U firetv_user -d firetv -c "SELECT * FROM fire_tv_devices;"
 ```
 

@@ -16,7 +16,7 @@ edit made underneath a running instance gets clobbered. The websocket lands it
 live with no restart.
 
 ```bash
-export HA_URL=http://192.168.1.7:8123
+export HA_URL=http://homeassistant.local:8123
 export HA_BEARER_TOKEN=...
 python3 push_dashboard.py firetv-dashboard.yaml     # url_path: firetv-control
 ```

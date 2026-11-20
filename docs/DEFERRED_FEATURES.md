@@ -222,7 +222,7 @@ Allow voice control without Home Assistant:
 # Alexa Skill / Google Action
 def handle_voice_command(command):
     if command == "turn on living room tv":
-        mqtt_publish("maestro_hub/colada/livingroom_colada/wake", "PRESS")
+        mqtt_publish("<button-prefix>/livingroom_colada/wake", "PRESS")
 ```
 
 #### 2. Mobile App API
@@ -242,7 +242,7 @@ func volumeUp(deviceId: String) {
 Trigger Fire TV actions from external systems:
 
 ```bash
-curl -X POST http://192.168.1.15:8888/webhook/netflix \
+curl -X POST http://hub.local:8888/webhook/netflix \
   -H "X-Webhook-Token: secret" \
   -d '{"device": "livingroom_colada"}'
 ```
@@ -371,7 +371,7 @@ Deferring these features saved:
 
 2. Update API client URLs in JavaScript:
    ```javascript
-   const API_BASE = "http://192.168.1.15:8888/api";
+   const API_BASE = "http://hub.local:8888/api";
    ```
 
 3. Configure Drogon static file serving (already done)

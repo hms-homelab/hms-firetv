@@ -10,7 +10,7 @@
 # INLINE in configuration.yaml / scripts.yaml — do not add this as a package on
 # that instance as well or every key will be defined twice.
 #
-# Everything drives the hms-firetv REST API on 192.168.1.15:8888. MQTT still
+# Everything drives the hms-firetv REST API on hub.local:8888. MQTT still
 # works and the discovered entities still exist; REST is used because it
 # carries parameters a button entity cannot — a hold duration, a package name,
 # a phrase to speak — and it answers synchronously, so a failure surfaces
@@ -32,19 +32,19 @@ rest_command:
   # `device` is the hms-firetv device_id, resolved by script.fire_tv_send_command.
 
   firetv_navigate:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/navigate"
+    url: "http://hub.local:8888/api/devices/{{ device }}/navigate"
     method: POST
     content_type: "application/json"
     payload: '{"action": "{{ action }}"}'
 
   firetv_media:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/media"
+    url: "http://hub.local:8888/api/devices/{{ device }}/media"
     method: POST
     content_type: "application/json"
     payload: '{"action": "{{ action }}"}'
 
   firetv_volume:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/volume"
+    url: "http://hub.local:8888/api/devices/{{ device }}/volume"
     method: POST
     content_type: "application/json"
     payload: '{"action": "{{ action }}"}'
@@ -52,19 +52,19 @@ rest_command:
   # Press and hold: keyDown, wait, keyUp. This is what makes the device repeat
   # a key, so one press scrolls a long list instead of moving one row.
   firetv_hold:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/hold"
+    url: "http://hub.local:8888/api/devices/{{ device }}/hold"
     method: POST
     content_type: "application/json"
     payload: '{"action": "{{ action }}", "ms": {{ ms | default(1200) }}}'
 
   firetv_launch_app:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/app"
+    url: "http://hub.local:8888/api/devices/{{ device }}/app"
     method: POST
     content_type: "application/json"
     payload: '{"package": "{{ package }}"}'
 
   firetv_send_text:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/text"
+    url: "http://hub.local:8888/api/devices/{{ device }}/text"
     method: POST
     content_type: "application/json"
     payload: '{"text": {{ text | to_json }}}'
@@ -72,30 +72,30 @@ rest_command:
   # Speak to Alexa. The device voice channel takes audio, never text, so the
   # service synthesises this with Piper and streams it to the TV microphone.
   firetv_voice_say:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/voice/say"
+    url: "http://hub.local:8888/api/devices/{{ device }}/voice/say"
     method: POST
     content_type: "application/json"
     payload: '{"text": {{ text | to_json }}}'
     timeout: 60
 
   firetv_voice_start:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/voice/start"
+    url: "http://hub.local:8888/api/devices/{{ device }}/voice/start"
     method: POST
     timeout: 30
 
   firetv_voice_stop:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/voice/stop"
+    url: "http://hub.local:8888/api/devices/{{ device }}/voice/stop"
     method: POST
     timeout: 30
 
   # Re-read the installed app list off the device into the service database.
   firetv_apps_sync:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/apps/sync"
+    url: "http://hub.local:8888/api/devices/{{ device }}/apps/sync"
     method: POST
     timeout: 90
 
   firetv_command:
-    url: "http://192.168.1.15:8888/api/devices/{{ device }}/command"
+    url: "http://hub.local:8888/api/devices/{{ device }}/command"
     method: POST
     content_type: "application/json"
     payload: '{"command": "{{ command }}"}'
@@ -109,7 +109,7 @@ rest:
       {% set devices = state_attr('sensor.hms_firetv_devices', 'devices') or [] %}
       {% set match = devices | selectattr('name', 'equalto', states('input_select.fire_tv_target')) | list %}
       {% set device_id = (match | first).device_id if match else 'lr' %}
-      http://192.168.1.15:8888/api/devices/{{ device_id }}/apps
+      http://hub.local:8888/api/devices/{{ device_id }}/apps
     sensor:
       - name: "Fire TV Apps"
         unique_id: fire_tv_apps_for_target

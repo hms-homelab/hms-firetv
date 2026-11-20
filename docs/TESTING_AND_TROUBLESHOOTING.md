@@ -20,15 +20,15 @@
 ### 1-Minute System Check
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 
 # Test 1: Database Connection
-PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.1.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h hub.local \
   -U firetv_user -d firetv -c "SELECT COUNT(*) FROM fire_tv_devices;"
 # Expected: Number of devices (e.g., "4")
 
 # Test 2: Device Status
-PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.1.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h hub.local \
   -U firetv_user -d firetv -c "SELECT device_id, name, ip_address, status FROM fire_tv_devices;"
 # Expected: List of devices with status
 
@@ -52,7 +52,7 @@ PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.1.15 \
 
 **Compile & Run**:
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
   -o test_device_repo ../test_device_repo.cpp \
   ../src/services/DatabaseService.cpp \
@@ -66,13 +66,13 @@ g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
 ```
 Testing DeviceRepository...
 ==========================================
-[DatabaseService] ✅ Connected to PostgreSQL: firetv@192.168.1.15:5432
+[DatabaseService] ✅ Connected to PostgreSQL: firetv@hub.local:5432
 ✓ Database connected
 
 1. Testing getAllDevices()...
    Found 4 devices in database
    - livingroom_colada (Living Room Fire TV (Colada)) - online
-   - albin_colada (Albin Fire TV (Colada)) - online
+   - office_colada (Office Fire TV (Colada)) - online
    - bedroom_colada (Bedroom Fire TV (Colada)) - online
    - test_cpp_device (C++ Test Device) - online
 
@@ -122,7 +122,7 @@ All tests completed successfully!
 
 **Compile & Run**:
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
   -o test_lightning_client ../test_lightning_client.cpp \
   ../src/clients/LightningClient.cpp \
@@ -181,7 +181,7 @@ Structure tests completed!
 
 **Compile & Run**:
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
   -o test_volume ../test_volume.cpp \
   ../src/services/DatabaseService.cpp \
@@ -196,7 +196,7 @@ g++ -std=c++17 -I../include -I/usr/include/jsoncpp \
 ```
 Volume Control Test - Living Room Fire TV
 ==========================================
-[DatabaseService] ✅ Connected to PostgreSQL: firetv@192.168.1.15:5432
+[DatabaseService] ✅ Connected to PostgreSQL: firetv@hub.local:5432
 Device: Living Room Fire TV (Colada) (192.168.1.63)
 [LightningClient] Initialized for device at 192.168.1.63
 
@@ -248,7 +248,7 @@ Done!
 
 **Run**:
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 ./test_full_integration
 ```
 
@@ -435,7 +435,7 @@ curl --version
 
 **Symptoms**:
 ```
-[DatabaseService] ❌ Failed to connect to 192.168.1.15:5432/firetv
+[DatabaseService] ❌ Failed to connect to hub.local:5432/firetv
 Error: could not connect to server
 ```
 
@@ -445,7 +445,7 @@ Error: could not connect to server
 sudo systemctl status postgresql
 
 # Test 2: Can you connect manually?
-PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.1.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h hub.local \
   -U firetv_user -d firetv
 
 # Test 3: Check pg_hba.conf
@@ -568,7 +568,7 @@ chmod +x diagnose_device.sh
 
 **Check compilation**:
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 make clean
 cmake ..
 make -j$(nproc) 2>&1 | tee build.log
@@ -752,7 +752,7 @@ if (!token.empty()) {
 **4. Verification**:
 ```bash
 # Check token in database
-PGPASSWORD=$(DB_PASSWORD) psql -h 192.168.1.15 \
+PGPASSWORD=$(DB_PASSWORD) psql -h hub.local \
   -U firetv_user -d firetv \
   -c "SELECT device_id, client_token FROM fire_tv_devices WHERE device_id = 'livingroom_colada';"
 
@@ -794,7 +794,7 @@ g++ -std=c++17 \
 ### ✅ System Healthy Checklist
 
 - [ ] PostgreSQL running: `systemctl status postgresql`
-- [ ] Database accessible: `psql -h 192.168.1.15 -U firetv_user -d firetv`
+- [ ] Database accessible: `psql -h hub.local -U firetv_user -d firetv`
 - [ ] Devices in database: `SELECT COUNT(*) FROM fire_tv_devices;`
 - [ ] Fire TV reachable: `ping 192.168.1.63`
 - [ ] Port 8009 open: `curl -X POST http://192.168.1.63:8009/apps/FireTVRemote`

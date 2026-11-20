@@ -11,7 +11,7 @@ Home Assistant communicates with HMS FireTV via **MQTT**, not direct API calls. 
 ```
 Home Assistant (192.168.1.7)
     ↓ MQTT Publish
-EMQX Broker (192.168.1.15:1883)
+EMQX Broker (hub.local:1883)
     ↓ MQTT Subscribe
 HMS FireTV (C++ Service)
     ↓ Lightning Protocol (HTTPS)
@@ -39,9 +39,9 @@ homeassistant/media_player/{device_id}/config
     "model": "Fire TV Stick",
     "sw_version": "1.0.0"
   },
-  "state_topic": "maestro_hub/firetv/livingroom_colada/state",
-  "availability_topic": "maestro_hub/firetv/livingroom_colada/availability",
-  "command_topic": "maestro_hub/firetv/livingroom_colada/set",
+  "state_topic": "<prefix>/livingroom_colada/state",
+  "availability_topic": "<prefix>/livingroom_colada/availability",
+  "command_topic": "<prefix>/livingroom_colada/set",
   "supported_features": [
     "volume_up",
     "volume_down",
@@ -55,7 +55,7 @@ homeassistant/media_player/{device_id}/config
 
 **State Topic** (published on state changes):
 ```
-maestro_hub/firetv/{device_id}/state
+<prefix>/{device_id}/state
 ```
 
 **Payload Example**:
@@ -71,7 +71,7 @@ maestro_hub/firetv/{device_id}/state
 
 **Availability Topic** (published periodically):
 ```
-maestro_hub/firetv/{device_id}/availability
+<prefix>/{device_id}/availability
 ```
 
 **Payload**: `online` or `offline`
@@ -80,7 +80,7 @@ maestro_hub/firetv/{device_id}/availability
 
 **Main Command Topic** (subscribed by service):
 ```
-maestro_hub/firetv/{device_id}/set
+<prefix>/{device_id}/set
 ```
 
 **Command Payloads**:
@@ -164,9 +164,9 @@ async def publish_discovery(device: Device):
     payload = {
         "name": device.name,
         "unique_id": f"firetv_{device.device_id}",
-        "state_topic": f"maestro_hub/firetv/{device.device_id}/state",
-        "command_topic": f"maestro_hub/firetv/{device.device_id}/set",
-        "availability_topic": f"maestro_hub/firetv/{device.device_id}/availability",
+        "state_topic": f"<prefix>/{device.device_id}/state",
+        "command_topic": f"<prefix>/{device.device_id}/set",
+        "availability_topic": f"<prefix>/{device.device_id}/availability",
         # ... full config
     }
 
@@ -231,8 +231,8 @@ private:
 ## MQTT Broker Configuration
 
 **Current Setup**:
-- **Broker**: Native EMQX at 192.168.1.15:1883
-- **Username**: aamat
+- **Broker**: Native EMQX at hub.local:1883
+- **Username**: hms
 - **Password**: $(MQTT_PASS)
 - **QoS**: 1 (at least once delivery)
 - **Retain**: Yes for discovery/availability, No for commands
@@ -242,7 +242,7 @@ private:
 mqtt::connect_options connOpts;
 connOpts.set_keep_alive_interval(20);
 connOpts.set_clean_session(true);
-connOpts.set_user_name("aamat");
+connOpts.set_user_name("hms");
 connOpts.set_password("$(MQTT_PASS)");
 ```
 
@@ -305,7 +305,7 @@ void updateDeviceState(const std::string& device_id, DeviceState state) {
             payload["state"] = "unknown";
     }
 
-    std::string topic = "maestro_hub/firetv/" + device_id + "/state";
+    std::string topic = "<prefix>/" + device_id + "/state";
     mqtt_client.publish(topic, payload.toStyledString(), false);
 }
 ```
@@ -316,33 +316,33 @@ void updateDeviceState(const std::string& device_id, DeviceState state) {
 
 **1. Subscribe to state updates**:
 ```bash
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/state" -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/state" -v
 ```
 
 **2. Send volume up command**:
 ```bash
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "volume_up"}'
 ```
 
 **3. Check Home Assistant**:
 - Go to Developer Tools → MQTT
-- Listen to: `maestro_hub/firetv/#`
-- Publish to: `maestro_hub/firetv/livingroom_colada/set`
+- Listen to: `<prefix>/#`
+- Publish to: `<prefix>/livingroom_colada/set`
 
 ### Test Discovery
 
 **1. Publish discovery message**:
 ```bash
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "homeassistant/media_player/livingroom_colada/config" \
   -m '{
     "name": "Living Room Fire TV",
     "unique_id": "firetv_livingroom_colada",
-    "state_topic": "maestro_hub/firetv/livingroom_colada/state",
-    "command_topic": "maestro_hub/firetv/livingroom_colada/set"
+    "state_topic": "<prefix>/livingroom_colada/state",
+    "command_topic": "<prefix>/livingroom_colada/set"
   }' \
   -r  # Retain flag
 ```
@@ -394,21 +394,20 @@ sudo systemctl status emqx
 **Check 2: Topic subscription**:
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) -t '#' -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) -t '#' -v
 ```
 
 **Check 3: Service connected**:
 ```bash
 # Check MQTT connections in EMQX dashboard
-# http://192.168.1.15:18083
-# Username: admin / Password: REDACTED
+# http://hub.local:18083 (log in with your EMQX admin account)
 ```
 
 ### Issue: Device not appearing in HA
 
 **Check 1: Discovery message published**:
 ```bash
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "homeassistant/media_player/+/config" -v
 ```
 

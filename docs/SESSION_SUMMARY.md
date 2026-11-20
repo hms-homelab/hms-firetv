@@ -70,7 +70,7 @@
 ## Verified Functionality
 
 ### Database Operations ✅
-- ✅ Connection to PostgreSQL (192.168.1.15:5432)
+- ✅ Connection to PostgreSQL (hub.local:5432)
 - ✅ Device CRUD operations (Create, Read, Update, Delete)
 - ✅ Pairing management (PIN display, verify, token storage)
 - ✅ Status tracking (last_seen_at updates)
@@ -188,9 +188,9 @@
 - **MQTT**: paho-mqtt-cpp (Phase 5, not yet implemented)
 
 ### Infrastructure
-- **Database**: PostgreSQL 14+ @ 192.168.1.15:5432
-- **MQTT Broker**: EMQX @ 192.168.1.15:1883 (native)
-- **Home Assistant**: 192.168.1.7:8123 (KVM VM)
+- **Database**: PostgreSQL 14+ @ hub.local:5432
+- **MQTT Broker**: EMQX @ hub.local:1883 (native)
+- **Home Assistant**: homeassistant.local:8123 (KVM VM)
 - **Fire TV Devices**: 192.168.1.41, 192.168.1.63, 192.168.1.64
 
 ---
@@ -207,7 +207,7 @@ FROM fire_tv_devices;
 | device_id | name | ip_address | status | paired |
 |-----------|------|------------|--------|--------|
 | livingroom_colada | Living Room Fire TV (Colada) | 192.168.1.63 | online | ✅ yes |
-| albin_colada | Albin Fire TV (Colada) | 192.168.1.64 | online | ✅ yes |
+| office_colada | Office Fire TV (Colada) | 192.168.1.64 | online | ✅ yes |
 | bedroom_colada | Bedroom Fire TV (Colada) | 192.168.1.41 | online | ✅ yes |
 | test_cpp_device | C++ Test Device | 192.168.1.99 | online | ❌ no |
 
@@ -350,7 +350,7 @@ FROM fire_tv_devices;
 
 ### Build
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
@@ -358,7 +358,7 @@ make -j$(nproc)
 
 ### Run Tests
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 
 # Database test
 ./test_device_repo
@@ -375,9 +375,9 @@ cd /home/aamat/maestro_hub/hms-firetv/build
 
 ### Run Service (Development)
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 
-DB_HOST=192.168.1.15 \
+DB_HOST=hub.local \
 DB_PORT=5432 \
 DB_NAME=firetv \
 DB_USER=firetv_user \
@@ -389,7 +389,7 @@ API_PORT=9888 \
 ### Database Access
 ```bash
 PGPASSWORD=$(DB_PASSWORD) psql \
-  -h 192.168.1.15 \
+  -h hub.local \
   -U firetv_user \
   -d firetv
 ```

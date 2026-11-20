@@ -4,7 +4,7 @@ fire_tv_launch_app:
   alias: "Fire TV - Launch App"
   fields:
     device:
-      description: "Device ID (livingroom_colada, bedroom_colada, albin_colada)"
+      description: "Device ID (livingroom_colada, bedroom_colada, office_colada)"
       example: "livingroom_colada"
     package:
       description: "App package name"
@@ -12,7 +12,7 @@ fire_tv_launch_app:
   sequence:
     - service: mqtt.publish
       data:
-        topic: "maestro_hub/colada/{{ device }}/launch_app"
+        topic: "<button-prefix>/{{ device }}/launch_app"
         payload: '{"package": "{{ package }}"}'
 
 # Convenience scripts for common apps

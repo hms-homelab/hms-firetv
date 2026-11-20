@@ -44,7 +44,7 @@ A **high-performance C++ Fire TV control service** with full Home Assistant inte
 ### 1. Install Service (1 command)
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 ./install-service.sh
 ```
 
@@ -81,7 +81,7 @@ sudo journalctl -u hms-firetv -f
 
 ### MQTT Integration
 - [x] Eclipse Paho MQTT C++ client
-- [x] Subscribe to `maestro_hub/colada/+/+`
+- [x] Subscribe to `<button-prefix>/+/+`
 - [x] Publish 15 buttons per device
 - [x] Button press → JSON command conversion
 - [x] Exponential backoff reconnection
@@ -189,7 +189,7 @@ hms-firetv/
 1. Load configuration from environment
 2. Connect to PostgreSQL database
 3. Connect to EMQX MQTT broker
-4. Subscribe to button command topics: maestro_hub/colada/+/+
+4. Subscribe to button command topics: <button-prefix>/+/+
 5. Publish 15 button discovery messages per device
 6. Publish availability: online
 7. Start Drogon HTTP server on port 8888
@@ -202,7 +202,7 @@ hms-firetv/
 [Home Assistant Button Press]
 User clicks button in HA
     ↓
-HA publishes: maestro_hub/colada/livingroom_colada/volume_up "PRESS"
+HA publishes: <button-prefix>/livingroom_colada/volume_up "PRESS"
     ↓
 hms_firetv receives message
     ↓
@@ -254,15 +254,15 @@ Service operational again!
 
 **Environment Variables**:
 ```ini
-DB_HOST=192.168.1.15
+DB_HOST=hub.local
 DB_PORT=5432
 DB_NAME=firetv
 DB_USER=firetv_user
 DB_PASSWORD=$(DB_PASSWORD)
 
-MQTT_BROKER_HOST=192.168.1.15
+MQTT_BROKER_HOST=hub.local
 MQTT_BROKER_PORT=1883
-MQTT_USER=aamat
+MQTT_USER=hms
 MQTT_PASS=$(MQTT_PASS)
 
 API_HOST=0.0.0.0
@@ -286,7 +286,7 @@ docker compose rm -f colada-lightning
 ### Step 2: Install C++ Service
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 ./install-service.sh
 ```
 
@@ -318,12 +318,12 @@ Installation Complete!
 
 ### Step 3: Verify in Home Assistant
 
-1. Open Home Assistant: http://192.168.1.7:8123
+1. Open Home Assistant: http://homeassistant.local:8123
 2. Go to: **Settings → Devices & Services → MQTT**
 3. Look for devices:
    - Living Room Fire TV (Colada) - 15 buttons
    - Bedroom Fire TV (Colada) - 15 buttons
-   - Albin Fire TV (Colada) - 15 buttons
+   - Office Fire TV (Colada) - 15 buttons
    - C++ Test Device - 15 buttons
 4. Click any Volume Up button
 5. TV volume should increase immediately!
@@ -335,7 +335,7 @@ Installation Complete!
 sudo journalctl -u hms-firetv -f
 
 # Expected output:
-[MQTTClient] Message received on maestro_hub/colada/livingroom_colada/volume_up (5 bytes)
+[MQTTClient] Message received on <button-prefix>/livingroom_colada/volume_up (5 bytes)
 [CommandHandler] Handling command for livingroom_colada
 [CommandHandler] Command: volume_up
 [LightningClient] Navigation command 'volume_up' sent (12ms)
@@ -364,8 +364,8 @@ sudo journalctl -u hms-firetv -n 20
 docker ps | grep -E "postgres|emqx"
 
 # 5. Test MQTT directly
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/colada/livingroom_colada/volume_up" -m "PRESS"
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<button-prefix>/livingroom_colada/volume_up" -m "PRESS"
 ```
 
 ---
@@ -397,14 +397,14 @@ ps aux | grep hms_firetv | grep -v grep
 
 # Expected:
 # USER  PID  %CPU %MEM   VSZ   RSS TTY STAT START TIME COMMAND
-# aamat 1234  1.5  0.3  50000 20000 ?   Ssl  16:30 0:01 ./hms_firetv
+# hms 1234  1.5  0.3  50000 20000 ?   Ssl  16:30 0:01 ./hms_firetv
 ```
 
 ### MQTT Traffic
 
 ```bash
 # Monitor all commands
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) -t "maestro_hub/colada/#" -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) -t "<button-prefix>/#" -v
 ```
 
 ---
@@ -432,8 +432,8 @@ button.bedroom_colada_up
 button.bedroom_colada_volume_up
 ...
 
-button.albin_colada_up
-button.albin_colada_volume_up
+button.office_colada_up
+button.office_colada_volume_up
 ...
 ```
 
@@ -452,7 +452,7 @@ automation:
           entity_id:
             - button.livingroom_colada_sleep
             - button.bedroom_colada_sleep
-            - button.albin_colada_sleep
+            - button.office_colada_sleep
 
 # Morning news
 automation:
@@ -474,7 +474,7 @@ automation:
 
 ## 🔒 Security Notes
 
-**Service User**: Runs as `aamat` (consider dedicated user for production)
+**Service User**: Runs as `hms` (consider dedicated user for production)
 
 **Credentials**: Stored in systemd service file (mode 600)
 
@@ -586,7 +586,7 @@ See [DEFERRED_FEATURES.md](DEFERRED_FEATURES.md) for:
 
 **Installation Command**:
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv && ./install-service.sh
+cd ~/hms-firetv && ./install-service.sh
 ```
 
 **Verification Command**:

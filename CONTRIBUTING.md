@@ -165,7 +165,7 @@ bool MQTTClient::connect(const std::string& broker_address,
 
 4. Test MQTT commands:
    ```bash
-   mosquitto_pub -h localhost -t "maestro_hub/colada/test_device/volume_up" -m "PRESS"
+   mosquitto_pub -h localhost -t "<button-prefix>/test_device/volume_up" -m "PRESS"
    ```
 
 ### Integration Tests

@@ -8,6 +8,16 @@
   MQTT path calls the model's serializer today, so nothing leaked; this
   closes the door before something does. A test pins `/api/devices` and
   `/api/devices/{id}` to never carry the token.
+- Private network details removed from docs, examples, scripts and tests
+  (addresses, home paths, user names, container names), and a broker admin
+  password that had been committed in a troubleshooting doc. That password
+  is still in the git history and must be rotated.
+- `MQTT_BROKER_HOST` now defaults to `localhost` and `MQTT_USER` to empty
+  (anonymous). Set both explicitly if you relied on the old built-in values.
+- The MQTT client and command-history tests no longer reach a hard-coded
+  broker and database. They are opt-in (`TEST_MQTT_BROKER`, `TEST_PG_HOST`)
+  and skipped otherwise. The history test used to fall back to the
+  production database and delete `unittest_%` devices from it.
 
 ### Fixed
 - `is_paired` no longer outlives the token. When a Fire TV drops its client

@@ -16,14 +16,14 @@ docker pull ghcr.io/hms-homelab/hms-firetv:latest
 docker run -d \
   --name hms-firetv \
   -p 8888:8888 \
-  -e MQTT_HOST=192.168.1.15 \
+  -e MQTT_HOST=hub.local \
   -e MQTT_PORT=1883 \
-  -e MQTT_USER=aamat \
+  -e MQTT_USER=hms \
   -e MQTT_PASS=secret \
-  -e DB_HOST=192.168.1.15 \
+  -e DB_HOST=hub.local \
   -e DB_PORT=5432 \
   -e DB_NAME=hms_firetv \
-  -e DB_USER=maestro \
+  -e DB_USER=hms \
   -e DB_PASS=secret \
   ghcr.io/hms-homelab/hms-firetv:latest
 ```

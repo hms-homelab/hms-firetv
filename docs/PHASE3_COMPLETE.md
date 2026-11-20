@@ -222,7 +222,7 @@ $ make -j$(nproc)
 [100%] Built target hms_firetv
 
 $ ls -lh hms_firetv
--rwxrwxr-x 1 aamat aamat 3.0M Feb  3 11:06 hms_firetv
+-rwxrwxr-x 1 hms hms 3.0M Feb  3 11:06 hms_firetv
 ```
 
 ## Code Quality

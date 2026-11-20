@@ -9,7 +9,7 @@
 ## Quick Start
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 
 # Install service
 ./install-service.sh
@@ -43,19 +43,19 @@ sudo apt-get install libpaho-mqtt-dev libpaho-mqttpp-dev
 
 ### 2. Services
 
-**PostgreSQL** (postgres_maestro container)
+**PostgreSQL** (<postgres-container> container)
 - Database: `firetv`
 - User: `firetv_user`
 - Password: `$(DB_PASSWORD)`
 - Port: 5432
 
 **EMQX MQTT Broker** (emqx container)
-- Broker: 192.168.1.15:1883
-- User: `aamat`
+- Broker: hub.local:1883
+- User: `hms`
 - Password: `$(MQTT_PASS)`
 
 **Home Assistant**
-- URL: http://192.168.1.7:8123
+- URL: http://homeassistant.local:8123
 - MQTT integration must be configured with discovery enabled
 
 ### 3. Fire TV Devices
@@ -67,7 +67,7 @@ Devices must be paired and registered in the PostgreSQL database.
 ## Building
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 
 # Create build directory
 mkdir -p build
@@ -95,7 +95,7 @@ ls -lh hms_firetv
 ### Automatic Installation
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 ./install-service.sh
 ```
 
@@ -234,23 +234,23 @@ curl http://localhost:8888/health
 
 ```bash
 # Monitor all button command topics
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/colada/#" -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<button-prefix>/#" -v
 
 # Monitor discovery messages
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "homeassistant/button/colada/#" -v
 
 # Monitor availability
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/+/availability" -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/+/availability" -v
 ```
 
 ### Database Connection
 
 ```bash
 # Check database connectivity
-docker exec -it postgres_maestro psql -U firetv_user -d firetv -c "SELECT COUNT(*) FROM fire_tv_devices;"
+docker exec -it <postgres-container> psql -U firetv_user -d firetv -c "SELECT COUNT(*) FROM fire_tv_devices;"
 ```
 
 ---
@@ -264,7 +264,7 @@ docker exec -it postgres_maestro psql -U firetv_user -d firetv -c "SELECT COUNT(
 sudo systemctl stop hms-firetv
 
 # Rebuild
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 make -j$(nproc)
 
 # Start service
@@ -292,7 +292,7 @@ sudo systemctl restart hms-firetv
 ### Automatic
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 ./uninstall-service.sh
 ```
 
@@ -310,7 +310,7 @@ sudo rm /etc/systemd/system/hms-firetv.service
 sudo systemctl daemon-reload
 
 # Remove binary (optional)
-rm -rf /home/aamat/maestro_hub/hms-firetv/build
+rm -rf ~/hms-firetv/build
 ```
 
 ---
@@ -328,13 +328,13 @@ sudo journalctl -u hms-firetv -n 100
 
 1. **Database not available**
    ```bash
-   docker ps | grep postgres_maestro
+   docker ps | grep <postgres-container>
    ```
 
 2. **MQTT broker not available**
    ```bash
    docker ps | grep emqx
-   mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) -t test -m test
+   mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) -t test -m test
    ```
 
 3. **Port 8888 already in use**
@@ -345,14 +345,14 @@ sudo journalctl -u hms-firetv -n 100
 
 4. **Binary not found**
    ```bash
-   ls -l /home/aamat/maestro_hub/hms-firetv/build/hms_firetv
+   ls -l ~/hms-firetv/build/hms_firetv
    ```
 
 ### Buttons Not Appearing in Home Assistant
 
 **Check discovery messages:**
 ```bash
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "homeassistant/button/colada/+/config" -C 4
 ```
 
@@ -370,8 +370,8 @@ mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
 **Test direct MQTT:**
 ```bash
 # Send volume up command
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/colada/livingroom_colada/volume_up" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<button-prefix>/livingroom_colada/volume_up" \
   -m "PRESS"
 
 # Watch service logs
@@ -380,7 +380,7 @@ sudo journalctl -u hms-firetv -f
 
 **Check device pairing:**
 ```bash
-docker exec -it postgres_maestro psql -U firetv_user -d firetv \
+docker exec -it <postgres-container> psql -U firetv_user -d firetv \
   -c "SELECT device_id, name, ip_address, status FROM fire_tv_devices;"
 ```
 
@@ -449,7 +449,7 @@ Environment="LOG_LEVEL=warning"
 sudo systemctl stop hms-firetv
 
 # Backup binary
-cp /home/aamat/maestro_hub/hms-firetv/build/hms_firetv \
+cp ~/hms-firetv/build/hms_firetv \
    /backup/hms_firetv_$(date +%Y%m%d)
 
 # Backup service file
@@ -457,7 +457,7 @@ sudo cp /etc/systemd/system/hms-firetv.service \
    /backup/hms-firetv.service_$(date +%Y%m%d)
 
 # Backup database (via pg_dump)
-docker exec postgres_maestro pg_dump -U firetv_user firetv \
+docker exec <postgres-container> pg_dump -U firetv_user firetv \
   > /backup/firetv_db_$(date +%Y%m%d).sql
 
 # Start service
@@ -472,8 +472,8 @@ sudo systemctl stop hms-firetv
 
 # Restore binary
 cp /backup/hms_firetv_20260203 \
-   /home/aamat/maestro_hub/hms-firetv/build/hms_firetv
-chmod +x /home/aamat/maestro_hub/hms-firetv/build/hms_firetv
+   ~/hms-firetv/build/hms_firetv
+chmod +x ~/hms-firetv/build/hms_firetv
 
 # Restore service file
 sudo cp /backup/hms-firetv.service_20260203 \
@@ -482,7 +482,7 @@ sudo systemctl daemon-reload
 
 # Restore database
 cat /backup/firetv_db_20260203.sql | \
-  docker exec -i postgres_maestro psql -U firetv_user -d firetv
+  docker exec -i <postgres-container> psql -U firetv_user -d firetv
 
 # Start service
 sudo systemctl start hms-firetv
@@ -509,7 +509,7 @@ sudo systemctl start hms-firetv
 
 2. **Install C++ service:**
    ```bash
-   cd /home/aamat/maestro_hub/hms-firetv
+   cd ~/hms-firetv
    ./install-service.sh
    ```
 
@@ -536,18 +536,18 @@ sudo systemctl start hms-firetv
 
 ### Service User
 
-Service runs as user `aamat`. Consider creating dedicated user:
+Service runs as user `hms`. Consider creating dedicated user:
 
 ```bash
 # Create dedicated user
 sudo useradd -r -s /bin/false hms-firetv
 
 # Update service file
-sudo sed -i 's/User=aamat/User=hms-firetv/' /etc/systemd/system/hms-firetv.service
-sudo sed -i 's/Group=aamat/Group=hms-firetv/' /etc/systemd/system/hms-firetv.service
+sudo sed -i 's/User=hms/User=hms-firetv/' /etc/systemd/system/hms-firetv.service
+sudo sed -i 's/Group=hms/Group=hms-firetv/' /etc/systemd/system/hms-firetv.service
 
 # Update permissions
-sudo chown -R hms-firetv:hms-firetv /home/aamat/maestro_hub/hms-firetv/build
+sudo chown -R hms-firetv:hms-firetv ~/hms-firetv/build
 
 # Reload
 sudo systemctl daemon-reload
@@ -594,8 +594,8 @@ sudo ufw deny 8888
 
 **Logs:** `/var/log/journal/` (via journalctl)
 **Config:** `/etc/systemd/system/hms-firetv.service`
-**Binary:** `/home/aamat/maestro_hub/hms-firetv/build/hms_firetv`
-**Source:** `/home/aamat/maestro_hub/hms-firetv/`
+**Binary:** `~/hms-firetv/build/hms_firetv`
+**Source:** `~/hms-firetv/`
 
 **Health Check:** http://localhost:8888/health
 

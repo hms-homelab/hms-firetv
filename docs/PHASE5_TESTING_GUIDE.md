@@ -60,15 +60,15 @@
 ### Terminal 1: Start the Service
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 ./run_service.sh
 ```
 
 **Expected Output:**
 ```
 Starting HMS FireTV service...
-Database: 192.168.1.15:5432/firetv
-MQTT: tcp://192.168.1.15:1883
+Database: hub.local:5432/firetv
+MQTT: tcp://hub.local:1883
 API: 0.0.0.0:8888
 
 ================================================================================
@@ -77,8 +77,8 @@ Starting HMS FireTV v1.0.0
 Configuration loaded:
   API Endpoint: 0.0.0.0:8888
   Thread Pool: 4 threads
-  Database: 192.168.1.15:5432/firetv
-  MQTT Broker: tcp://192.168.1.15:1883
+  Database: hub.local:5432/firetv
+  MQTT Broker: tcp://hub.local:1883
 --------------------------------------------------------------------------------
 Initializing services...
   ✓ DatabaseService initialized
@@ -97,7 +97,7 @@ Health check: http://localhost:8888/health
 ### Terminal 2: Monitor MQTT Traffic
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 ./test_mqtt_manual.sh monitor
 ```
 
@@ -106,16 +106,16 @@ cd /home/aamat/maestro_hub/hms-firetv
 🔍 Monitoring all MQTT traffic...
    Press Ctrl+C to stop
 
-maestro_hub/firetv/livingroom_colada/availability online
-maestro_hub/firetv/bedroom_colada/availability online
-maestro_hub/firetv/albin_colada/availability online
+<prefix>/livingroom_colada/availability online
+<prefix>/bedroom_colada/availability online
+<prefix>/office_colada/availability online
 homeassistant/media_player/livingroom_colada/config {"name":"Living Room Fire TV",...}
 ```
 
 ### Terminal 3: Test Commands
 
 ```bash
-cd /home/aamat/maestro_hub/hms-firetv
+cd ~/hms-firetv
 
 # Test volume control
 ./test_mqtt_manual.sh volume_up
@@ -133,7 +133,7 @@ cd /home/aamat/maestro_hub/hms-firetv
 
 **Expected Output in Terminal 1:**
 ```
-[MQTTClient] Message received on maestro_hub/firetv/livingroom_colada/set (26 bytes)
+[MQTTClient] Message received on <prefix>/livingroom_colada/set (26 bytes)
 [CommandHandler] Handling command for livingroom_colada
 [CommandHandler] Command: volume_up
 [CommandHandler] ✅ Volume command succeeded (42ms)
@@ -163,7 +163,7 @@ curl http://localhost:8888/health | jq
 ### 2. MQTT Discovery Verification
 
 ```bash
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "homeassistant/media_player/+/config" -v
 ```
 
@@ -172,117 +172,117 @@ mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
 homeassistant/media_player/livingroom_colada/config {
   "name": "Living Room Fire TV",
   "unique_id": "firetv_livingroom_colada",
-  "state_topic": "maestro_hub/firetv/livingroom_colada/state",
-  "command_topic": "maestro_hub/firetv/livingroom_colada/set",
+  "state_topic": "<prefix>/livingroom_colada/state",
+  "command_topic": "<prefix>/livingroom_colada/set",
   ...
 }
 ```
 
 ### 3. Home Assistant Verification
 
-1. Open Home Assistant: http://192.168.1.7:8123
+1. Open Home Assistant: http://homeassistant.local:8123
 2. Go to **Settings → Devices & Services → MQTT**
 3. Look for **3 devices**:
    - Living Room Fire TV (Colada)
    - Bedroom Fire TV (Colada)
-   - Albin Fire TV (Colada)
+   - Office Fire TV (Colada)
 4. Click on a device → Test controls
 
 ### 4. Command Testing (Manual)
 
 **Volume Up:**
 ```bash
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "volume_up"}'
 ```
 
 **Volume Down:**
 ```bash
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "volume_down"}'
 ```
 
 **Navigation - Home:**
 ```bash
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "navigate", "action": "home"}'
 ```
 
 **Navigation - D-Pad:**
 ```bash
 # Up
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "navigate", "direction": "up"}'
 
 # Down
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "navigate", "direction": "down"}'
 
 # Select
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "navigate", "action": "select"}'
 ```
 
 **Media Control:**
 ```bash
 # Play/Pause
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "media_play_pause"}'
 
 # Play
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "media_play"}'
 
 # Pause
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "media_pause"}'
 ```
 
 **App Launch:**
 ```bash
 # Netflix
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "launch_app", "package": "com.netflix.ninja"}'
 
 # Prime Video
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "launch_app", "package": "com.amazon.avod.thirdpartyclient"}'
 
 # YouTube
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "launch_app", "package": "com.google.android.youtube.tv"}'
 ```
 
 **App Launch by Name:**
 ```bash
 # Using friendly name
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "select_source", "source": "Netflix"}'
 ```
 
 **Power Control:**
 ```bash
 # Turn on (wake from standby)
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "turn_on"}'
 
 # Turn off (enter standby)
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
-  -t "maestro_hub/firetv/livingroom_colada/set" \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
+  -t "<prefix>/livingroom_colada/set" \
   -m '{"command": "turn_off"}'
 ```
 
@@ -338,7 +338,7 @@ docker ps | grep postgres
 docker ps | grep emqx
 
 # Database connectivity
-psql -h 192.168.1.15 -U firetv_user -d firetv -c "SELECT 1;"
+psql -h hub.local -U firetv_user -d firetv -c "SELECT 1;"
 ```
 
 ### MQTT Not Connecting
@@ -349,7 +349,7 @@ psql -h 192.168.1.15 -U firetv_user -d firetv -c "SELECT 1;"
 docker logs -f emqx | tail -20
 
 # Test MQTT connection
-mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "test/topic" -m "test"
 ```
 
@@ -358,14 +358,14 @@ mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
 **Check Fire TV Device:**
 ```bash
 # Test Lightning client directly
-cd /home/aamat/maestro_hub/hms-firetv/build
+cd ~/hms-firetv/build
 ./test_volume  # Should control living room TV
 ```
 
 **Check MQTT Traffic:**
 ```bash
 # Monitor all topics
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) -t '#' -v
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) -t '#' -v
 ```
 
 ### Devices Not in Home Assistant
@@ -376,7 +376,7 @@ mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) -t '#' -v
 
 **Check Discovery Messages:**
 ```bash
-mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \
+mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \
   -t "homeassistant/#" -v
 ```
 

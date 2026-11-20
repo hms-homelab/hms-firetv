@@ -9,7 +9,7 @@ Requires=postgresql.service
 Type=simple
 User=%i
 Group=%i
-WorkingDirectory=/home/%i/maestro_hub/projects/hms-firetv/build
+WorkingDirectory=/home/%i/hms-firetv/build
 
 # Environment variables
 Environment="DB_HOST=localhost"
@@ -27,7 +27,7 @@ Environment="THREAD_NUM=4"
 Environment="LOG_LEVEL=info"
 
 # Service binary
-ExecStart=/home/%i/maestro_hub/projects/hms-firetv/build/hms_firetv
+ExecStart=/home/%i/hms-firetv/build/hms_firetv
 
 # Restart policy
 Restart=on-failure

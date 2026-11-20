@@ -99,12 +99,12 @@ export MQTT_BROKER_HOST=localhost MQTT_BROKER_PORT=1883
 export MQTT_USER=your_user MQTT_PASS=your_pass
 
 # Optional: IP discovery
-export DISCOVERY_SUBNET=192.168.1    # scan this /24 subnet
+export DISCOVERY_SUBNET=192.168.1    # scan this /24 subnet (set it: the built-in default is one specific network)
 export DISCOVERY_INTERVAL=300        # every 5 minutes
 
 # Optional: speak to Alexa. The device voice channel carries audio and never
 # text, so text is synthesised first. Any Wyoming engine works.
-export TTS_HOST=192.168.1.5 TTS_PORT=10200
+export TTS_HOST=192.168.1.20 TTS_PORT=10200
 export TTS_VOICE=                    # empty uses the engine default
 
 # Optional: TLS, required only for the live microphone page — a browser will
@@ -314,10 +314,13 @@ engine (wyoming-piper) and `POST /api/devices/{id}/voice/say` does the rest.
 ## MQTT Topics
 
 ```
-maestro_hub/colada/{device_id}/{action}        # command input
+<button-prefix>/{device_id}/{action}          # command input
 homeassistant/button/colada/{id}_{btn}/config  # HA discovery
 colada/{device_id}/availability                # online/offline
 ```
+
+The button prefix and the state prefix are fixed in `src/mqtt/MQTTClient.cpp`
+and `src/mqtt/DiscoveryPublisher.cpp`; there is no setting for them yet.
 
 Actions include `hold` (`"dpad_down,1200"`), `key_down` / `key_up`,
 `launch_app`, `apps_refresh`, `voice_say`, `voice_start` / `voice_stop`.

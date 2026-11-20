@@ -253,7 +253,7 @@ $ curl http://localhost:9888/health
 $ make -j$(nproc)
 [100%] Built target hms_firetv
 $ ls -lh hms_firetv
--rwxrwxr-x 1 aamat aamat 2.9M Feb  3 10:55 hms_firetv
+-rwxrwxr-x 1 hms hms 2.9M Feb  3 10:55 hms_firetv
 ```
 
 ## Summary

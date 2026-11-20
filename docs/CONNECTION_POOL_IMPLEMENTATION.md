@@ -315,7 +315,7 @@ done
 wait
 
 # Verify all logged
-psql -h 192.168.1.15 -U maestro -d firetv \
+psql -h hub.local -U hms -d firetv \
   -c "SELECT COUNT(*) FROM command_history WHERE created_at > NOW() - INTERVAL '1 minute';"
 # Expected: 100
 ```
