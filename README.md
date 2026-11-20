@@ -200,18 +200,50 @@ remote does.
 
 ### Endpoints
 
-Base `https://{ip}:8080`, self-signed, `X-Api-Key` + `X-Client-Token` headers.
+Base `https://{ip}:8080`, self-signed, `X-Api-Key` + `X-Client-Token` headers,
+`Content-Type: application/json; charset=utf-8` (without the charset,
+`media?action=scan` answers "Bad arguments supplied"). The API key is a fixed
+public value; the client token from pairing is the only secret.
 
 | Call | Purpose |
 |---|---|
-| `POST /v1/FireTV?action=<a>` | `dpad_up/down/left/right`, `select`, `back`, `home`, `menu` |
-| `POST /v1/media?action=<a>` | `play`, `scan` |
+| `POST /v1/FireTV?action=<a>` | `dpad_up/down/left/right`, `select`, `back`, `home`, `menu`, `sleep`, `power` |
+| `POST /v1/media?action=play` | play/pause toggle |
+| `POST /v1/media?action=scan` | body `{"direction":"forward"\|"backward","durationInSeconds":"10","speed":"1"}` |
+| `GET  /v1/FireTV/status` | `osVersion`, `platformType`, `turnstileVersion`; needs the token, so it doubles as the token check |
 | `GET  /v1/FireTV/appsV2` | **the installed app list**, with display names and icon art |
 | `POST /v1/FireTV/app/<package>` | launch an app |
 | `POST /v1/FireTV/voiceCommand?action=start\|stop` | **bookends a voice stream** |
-| `GET  /v1/FireTV/keyboard` | open the on-screen keyboard |
-| `POST /v1/FireTV/pin/display`, `/pin/verify` | PIN pairing |
+| `GET  /v1/FireTV/keyboard` | keyboard state `{state, mode, text}` |
+| `POST /v1/FireTV/keyboard` | body `{"text":"..."}`, types the whole string into the focused field |
+| `POST /v1/FireTV/pin/display`, `/pin/verify` | PIN pairing; verify answers `{"description":"<token>"}`, or `""` for a wrong PIN |
 | `POST http://{ip}:8009/apps/FireTVRemote` | wake — plain HTTP, works while asleep |
+
+`power` toggles the TV over HDMI-CEC; the device does not report TV power
+state, so it is a toggle, never a discrete on or off.
+
+### Client tokens and re-pairing
+
+A Fire TV can forget a client token on its own (factory reset, the remote
+removed in Settings, a remote-service update), and from then on every
+authenticated call is answered **401 or 403**. A timeout or refused connection
+is a sleeping or absent device and says nothing about the token.
+
+hms-firetv acts on that without any timer:
+
+- When any command is answered 401/403, the token is re-checked with
+  `GET /v1/FireTV/status`. Only if that is rejected too is the pairing cleared,
+  so `is_paired` goes false and `/pair/start` works straight away. A 403 for a
+  token that has since been replaced is ignored.
+- `GET /api/devices/{id}/pair/status?verify=true` checks the token on demand
+  and adds `token_check`: `valid`, `rejected` or `inconclusive`.
+- `POST /api/devices/{id}/pair/start` on a device that still has a token checks
+  it first; a rejected token no longer needs a `/pair/reset` beforehand.
+- `POST /api/devices/{id}/pair/verify` answers **400 "Incorrect PIN"** for a
+  wrong PIN, and the TV keeps the session open for another try.
+
+None of these checks wake a sleeping device, because waking it switches the TV
+on. A sleeping device is `inconclusive` and keeps its token.
 
 ### Press and hold
 

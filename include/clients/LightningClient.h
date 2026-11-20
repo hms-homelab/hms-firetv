@@ -4,6 +4,7 @@
 #include <optional>
 #include <json/json.h>
 #include <curl/curl.h>
+#include <functional>
 #include <mutex>
 
 namespace hms_firetv {
@@ -19,6 +20,40 @@ struct CommandResult {
     Json::Value response_body;
 
     CommandResult() : success(false), status_code(0), response_time_ms(0) {}
+};
+
+/**
+ * What POST /v1/FireTV/pin/verify said.
+ *
+ * The device answers {"description":"<token>"} for a good PIN and
+ * {"description":""} for a wrong one, and the pairing session stays open so
+ * the PIN can be entered again. A wrong PIN is the user's typo, not a
+ * transport failure, and must not be retried with the same digits.
+ */
+enum class PinVerifyStatus {
+    Paired,     // token returned
+    WrongPin,   // empty description: the device rejected the PIN
+    Pending,    // "OK": accepted, token not issued yet
+    Failed      // no usable answer (HTTP error, socket error, bad body)
+};
+
+struct PinVerifyResult {
+    PinVerifyStatus status = PinVerifyStatus::Failed;
+    std::string token;
+    int http_status = 0;
+};
+
+/**
+ * Whether the device still accepts the client token we hold.
+ *
+ * Only an HTTP 401/403 proves a token is dead. No answer at all (asleep,
+ * gone, timeout) or any other status says nothing about the token, and a
+ * caller must never discard a token on that basis.
+ */
+enum class TokenCheck {
+    Valid,        // GET /v1/FireTV/status answered 2xx with our token
+    Rejected,     // the device answered 401 or 403
+    Inconclusive  // no answer, or an answer that is not about auth
 };
 
 /**
@@ -99,6 +134,41 @@ public:
     std::string verifyPin(const std::string& pin);
 
     /**
+     * Verify a PIN and say why it failed, if it did.
+     *
+     * verifyPin() collapses a wrong PIN and a dead network into the same
+     * empty string; this keeps them apart so the caller can tell the user
+     * to retype rather than reporting a device failure.
+     */
+    PinVerifyResult verifyPinDetailed(const std::string& pin);
+
+    /** Classify a pin/verify response. Pure, so it is unit-testable. */
+    static PinVerifyResult interpretPinVerify(const CommandResult& result);
+
+    /**
+     * Ask the device whether our client token is still good.
+     *
+     * GET /v1/FireTV/status with the token. Does NOT wake a sleeping device:
+     * waking powers the TV on over HDMI-CEC, and a check must never do that.
+     * A sleeping device therefore answers Inconclusive.
+     */
+    TokenCheck checkToken();
+
+    /** Classify a /v1/FireTV/status response. Pure, so it is unit-testable. */
+    static TokenCheck interpretTokenCheck(const CommandResult& result);
+
+    /** 401 and 403 are how the device says "I do not know this token". */
+    static bool isAuthRejection(int status_code);
+
+    /**
+     * Called with the token that was sent whenever an authenticated request
+     * is answered 401/403. Owners use it to revalidate and, if the device
+     * really has dropped the token, clear the pairing (see TokenGuard).
+     * Health probes and the token check itself never fire it.
+     */
+    void setAuthRejectedHandler(std::function<void(const std::string& token)> handler);
+
+    /**
      * Set client token (for already-paired devices)
      *
      * @param token Client token from previous pairing
@@ -120,11 +190,22 @@ public:
      * Send media control command
      *
      * @param action Media action ("play", "pause", "scan")
-     * @param direction Scan direction ("forward", "back") - required for scan
+     * @param direction Scan direction ("forward", "backward"; "back" is
+     *                  accepted and sent as "backward") - required for scan
      * @return Command result with success status and timing
      */
     CommandResult sendMediaCommand(const std::string& action,
                                      const std::string& direction = "");
+
+    /**
+     * JSON body for POST /v1/media?action=scan.
+     *
+     * The device takes the direction in the body, not the query string:
+     * {"direction":"forward"|"backward","durationInSeconds":"10","speed":"1"}
+     * with the numbers as strings. Without it the device answers
+     * "Bad arguments supplied".
+     */
+    static std::string buildScanBody(const std::string& direction);
 
     /**
      * Convenience methods for common media commands
@@ -143,7 +224,7 @@ public:
      *
      * @param action Navigation action:
      *               "dpad_up", "dpad_down", "dpad_left", "dpad_right",
-     *               "select", "home", "back", "menu", "sleep"
+     *               "select", "home", "back", "menu", "sleep", "power"
      * @return Command result with success status and timing
      */
     CommandResult sendNavigationCommand(const std::string& action);
@@ -160,6 +241,11 @@ public:
     CommandResult back();
     CommandResult menu();
     CommandResult sleep();
+
+    /** action=power: a TOGGLE of the connected TV over HDMI-CEC, not a
+     * discrete on or off. The device does not report TV power state, so a
+     * caller must not retry it to "make sure". */
+    CommandResult powerToggle();
 
     // ========================================================================
     // APP LAUNCH
@@ -267,9 +353,12 @@ private:
      *
      * @param url Request URL
      * @param timeout_seconds Request timeout
+     * @param allow_wake Wake a sleeping device and retry once on a refused connect
+     * @param report_auth Fire the auth-rejected handler on 401/403
      * @return Command result
      */
-    CommandResult executeGet(const std::string& url, long timeout_seconds = COMMAND_TIMEOUT);
+    CommandResult executeGet(const std::string& url, long timeout_seconds = COMMAND_TIMEOUT,
+                             bool allow_wake = true, bool report_auth = true);
 
     /**
      * Execute HTTP POST request
@@ -278,12 +367,21 @@ private:
      * @param json_body JSON body (empty for no body)
      * @param timeout_seconds Request timeout
      * @param include_token Include client token in headers
+     * @param allow_wake Wake a sleeping device and retry once on a refused
+     *                   connect. False for the wake request itself, which
+     *                   would otherwise recurse into wakeAndWait().
      * @return Command result
      */
     CommandResult executePost(const std::string& url,
                                 const std::string& json_body = "",
                                 long timeout_seconds = COMMAND_TIMEOUT,
-                                bool include_token = true);
+                                bool include_token = true,
+                                bool allow_wake = true);
+
+    /** Fire auth_rejected_handler_ if this answer rejected the token sent. */
+    void reportAuthResult(const CommandResult& result, const std::string& token_sent);
+
+    std::function<void(const std::string&)> auth_rejected_handler_;
 
     /**
      * Parse JSON response body

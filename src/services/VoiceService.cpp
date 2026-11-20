@@ -1,5 +1,6 @@
 #include "services/VoiceService.h"
 #include "repositories/DeviceRepository.h"
+#include "services/TokenGuard.h"
 
 #include <algorithm>
 #include <chrono>
@@ -70,8 +71,10 @@ std::shared_ptr<LightningClient> VoiceService::lightningFor(const std::string& d
         if (error) *error = "unknown device: " + device_id;
         return nullptr;
     }
-    return std::make_shared<LightningClient>(device->ip_address, device->api_key,
-                                             device->client_token.value_or(""));
+    auto client = std::make_shared<LightningClient>(device->ip_address, device->api_key,
+                                                    device->client_token.value_or(""));
+    TokenGuard::attach(*client, device_id);
+    return client;
 }
 
 // ============================================================================

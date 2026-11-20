@@ -4,6 +4,7 @@
 #include "clients/LightningClient.h"
 #include "repositories/DeviceRepository.h"
 #include "database/IDatabase.h"
+#include "services/TokenGuard.h"
 #include <memory>
 
 using namespace drogon;
@@ -92,12 +93,21 @@ public:
      * - is_paired: boolean
      * - pairing_in_progress: boolean
      * - pin_expires_at: timestamp (if pairing in progress)
+     *
+     * With ?verify=true the token on file is checked against the device
+     * first (GET /v1/FireTV/status, no wake) and the response adds
+     * token_check: "valid" | "rejected" | "inconclusive". A rejected token is
+     * cleared, so is_paired then reads false.
      */
     void getPairingStatus(const HttpRequestPtr& req,
                          std::function<void(const HttpResponsePtr&)>&& callback,
                          std::string device_id);
 
     static void setDatabase(std::shared_ptr<IDatabase> db);
+
+    /** How a token on file is checked against the device. Defaults to a real
+     * GET /v1/FireTV/status; tests pass a fake. Empty restores the default. */
+    static void setTokenChecker(TokenGuard::Checker checker);
 
 private:
     /**
@@ -127,6 +137,7 @@ private:
     std::mutex clients_mutex_;
 
     static std::shared_ptr<IDatabase> db_;
+    static TokenGuard::Checker token_checker_;
 };
 
 } // namespace hms_firetv

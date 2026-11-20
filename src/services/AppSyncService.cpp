@@ -1,6 +1,7 @@
 #include "services/AppSyncService.h"
 #include "repositories/AppsRepository.h"
 #include "repositories/DeviceRepository.h"
+#include "services/TokenGuard.h"
 
 #include <chrono>
 #include <iostream>
@@ -62,6 +63,7 @@ AppSyncService::Result AppSyncService::syncDevice(const std::string& device_id) 
 
     LightningClient client(device->ip_address, device->api_key,
                            device->client_token.value_or(""));
+    TokenGuard::attach(client, device_id);
     return syncDevice(device_id, client);
 }
 

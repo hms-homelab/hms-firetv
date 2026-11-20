@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `is_paired` no longer outlives the token. When a Fire TV drops its client
+  token, every command comes back 401/403, but the service went on reporting
+  the device as paired and `/pair/start` refused with 409 until someone knew
+  to call `/pair/reset`. A 401/403 on any command now re-checks the token with
+  `GET /v1/FireTV/status`, and only a second rejection clears the pairing. A
+  late 403 for a token that has since been replaced is ignored, and a sleeping
+  or absent device keeps its token. Nothing wakes a device to check.
+- Cached clients now follow the token on file. The REST client cache (one
+  hour) and the MQTT client cache (no expiry) kept sending the token they were
+  built with, so commands after a re-pair still failed with 403.
+- Media scan sends the direction in the JSON body the device expects
+  (`direction`, `durationInSeconds`, `speed`) instead of a query parameter,
+  and spells backward `backward`.
+- Requests send `Content-Type: application/json; charset=utf-8`, which
+  `media?action=scan` needs, on both the synchronous and the async path.
+- A wrong PIN on `/pair/verify` answers 400 "Incorrect PIN" instead of 500,
+  and is no longer resent three times. Only the "OK, token pending" answer is
+  retried.
+- PINs and client tokens are no longer written to the log.
+- The wake request and the reachability probe no longer wake-and-retry
+  themselves. A refused connection on port 8009 used to call `wakeAndWait()`
+  from inside the wake, recursing without bound.
+
+### Added
+- `GET /api/devices/{id}/pair/status?verify=true` checks the token against
+  the device and adds `token_check` (`valid`, `rejected`, `inconclusive`).
+- `/pair/start` on a device that still holds a token checks it first and
+  goes ahead when the device has rejected it.
+- `power` navigation action over MQTT (`{"command":"navigate","action":"power"}`),
+  a TV power toggle. REST `navigate` already passed it through.
+
 ## [1.1.3] - 2026-09-29
 
 ### Fixed

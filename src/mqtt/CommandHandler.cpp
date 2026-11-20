@@ -1,6 +1,7 @@
 #include "mqtt/CommandHandler.h"
 #include "repositories/AppsRepository.h"
 #include "services/AppSyncService.h"
+#include "services/TokenGuard.h"
 #include "services/VoiceService.h"
 #include <algorithm>
 #include <iostream>
@@ -102,17 +103,22 @@ void CommandHandler::handleCommand(const std::string& device_id, const Json::Val
 std::shared_ptr<LightningClient> CommandHandler::getClientForDevice(const std::string& device_id) {
     std::lock_guard<std::mutex> lock(clients_mutex_);
 
-    // Check cache first
-    auto it = clients_.find(device_id);
-    if (it != clients_.end()) {
-        return it->second;
-    }
-
     // Get device from database
     auto device = DeviceRepository::getInstance().getDeviceById(device_id);
     if (!device.has_value()) {
         std::cerr << "[CommandHandler] Device not found: " << device_id << std::endl;
         return nullptr;
+    }
+
+    // This cache never expires, so a client built before a re-pair would send
+    // the old, dead token forever. Keep its token in step with the record.
+    auto it = clients_.find(device_id);
+    if (it != clients_.end()) {
+        const std::string on_file = device->client_token.value_or("");
+        if (it->second->getClientToken() != on_file) {
+            it->second->setClientToken(on_file);
+        }
+        return it->second;
     }
 
     // Create Lightning client
@@ -121,6 +127,7 @@ std::shared_ptr<LightningClient> CommandHandler::getClientForDevice(const std::s
         device->api_key,
         device->client_token.value_or("")
     );
+    TokenGuard::attach(*client, device_id);
 
     // Cache client
     clients_[device_id] = client;
@@ -214,6 +221,8 @@ void CommandHandler::handleNavigationCommand(LightningClient& client, const Json
             result = client.back();
         } else if (action == "menu") {
             result = client.menu();
+        } else if (action == "power") {
+            result = client.powerToggle();
         } else {
             std::cerr << "[CommandHandler] Unknown action: " << action << std::endl;
             return;

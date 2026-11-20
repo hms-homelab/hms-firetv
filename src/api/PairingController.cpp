@@ -9,10 +9,27 @@
 namespace hms_firetv {
 
 std::shared_ptr<IDatabase> PairingController::db_;
+TokenGuard::Checker PairingController::token_checker_ = TokenGuard::checkWithDevice;
 
 void PairingController::setDatabase(std::shared_ptr<IDatabase> db) {
     db_ = std::move(db);
 }
+
+void PairingController::setTokenChecker(TokenGuard::Checker checker) {
+    token_checker_ = checker ? std::move(checker) : TokenGuard::Checker(TokenGuard::checkWithDevice);
+}
+
+namespace {
+
+const char* tokenCheckName(TokenCheck check) {
+    switch (check) {
+        case TokenCheck::Valid:    return "valid";
+        case TokenCheck::Rejected: return "rejected";
+        default:                   return "inconclusive";
+    }
+}
+
+}  // namespace
 
 // ============================================================================
 // START PAIRING
@@ -29,11 +46,21 @@ void PairingController::startPairing(const HttpRequestPtr& req,
             return;
         }
 
-        // Check if already paired
+        // Check if already paired. A token on file is only a claim: ask the
+        // device first, and if it no longer accepts the token the guard
+        // clears it and pairing can go ahead without a /pair/reset.
         if (device->client_token.has_value() && !device->client_token.value().empty()) {
-            sendError(std::move(callback), k409Conflict,
-                     "Device already paired. Use /pair/reset to unpair first.");
-            return;
+            TokenCheck check = TokenGuard::verify(device_id, token_checker_);
+            if (check != TokenCheck::Rejected) {
+                std::string why = (check == TokenCheck::Valid)
+                    ? "Device already paired and its token is valid."
+                    : "Device already paired; its token could not be checked (device asleep or unreachable).";
+                sendError(std::move(callback), k409Conflict,
+                         why + " Use /pair/reset to unpair first.");
+                return;
+            }
+            std::cout << "[PairingController] " << device_id
+                      << " had a token the device no longer accepts; pairing anew" << std::endl;
         }
 
         // Get Lightning client
@@ -142,18 +169,29 @@ void PairingController::verifyPairing(const HttpRequestPtr& req,
             return;
         }
 
-        // Complete pairing with Fire TV — retry up to 3 times in case TV returns "OK" first
-        std::string client_token;
-        for (int attempt = 0; attempt < 3 && client_token.empty(); ++attempt) {
+        // Complete pairing with Fire TV. Retry only while the device says "OK"
+        // (accepted, token not issued yet). A wrong PIN is answered with an
+        // empty description; resending the same digits cannot fix it, and the
+        // device keeps the session open for another attempt.
+        PinVerifyResult outcome;
+        for (int attempt = 0; attempt < 3; ++attempt) {
             if (attempt > 0) std::this_thread::sleep_for(std::chrono::seconds(1));
-            client_token = client->verifyPin(entered_pin);
+            outcome = client->verifyPinDetailed(entered_pin);
+            if (outcome.status != PinVerifyStatus::Pending) break;
         }
 
-        if (client_token.empty()) {
+        if (outcome.status == PinVerifyStatus::WrongPin) {
+            sendError(std::move(callback), k400BadRequest,
+                     "Incorrect PIN. Check the PIN on the TV and submit it again.");
+            return;
+        }
+
+        if (outcome.status != PinVerifyStatus::Paired) {
             sendError(std::move(callback), k500InternalServerError,
                      "Failed to complete pairing with device");
             return;
         }
+        const std::string client_token = outcome.token;
 
         // Store client token and clear PIN
         if (!db_ || !db_->completePairing(device_id, client_token)) {
@@ -243,9 +281,26 @@ void PairingController::getPairingStatus(const HttpRequestPtr& req,
             return;
         }
 
+        // ?verify=true asks the device whether it still accepts the token on
+        // file, instead of trusting our own bookkeeping. It never wakes the
+        // device, so a sleeping one answers "inconclusive" and keeps its token.
+        std::string verify = req ? req->getParameter("verify") : "";
+        bool want_verify = (verify == "true" || verify == "1");
+
         Json::Value response;
         response["success"] = true;
         response["device_id"] = device_id;
+
+        if (want_verify) {
+            TokenCheck check = TokenGuard::verify(device_id, token_checker_);
+            response["token_check"] = tokenCheckName(check);
+            if (check == TokenCheck::Rejected) {
+                // The guard cleared the pairing; report the record as it is now.
+                auto refreshed = DeviceRepository::getInstance().getDeviceById(device_id);
+                if (refreshed.has_value()) device = refreshed;
+            }
+        }
+
         response["is_paired"] = device->client_token.has_value() && !device->client_token.value().empty();
 
         // Check if pairing is in progress

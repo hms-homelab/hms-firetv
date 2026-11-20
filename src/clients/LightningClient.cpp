@@ -42,7 +42,7 @@ LightningClient::~LightningClient() {
 bool LightningClient::wakeDevice() {
     std::cout << "[LightningClient] Waking device " << ip_address_ << std::endl;
 
-    auto result = executePost(wake_url_, "", WAKE_TIMEOUT, false);
+    auto result = executePost(wake_url_, "", WAKE_TIMEOUT, false, /*allow_wake=*/false);
 
     // 200, 201, 204 are all success
     bool success = result.status_code == 200 ||
@@ -86,42 +86,107 @@ bool LightningClient::displayPin(const std::string& friendly_name) {
 }
 
 std::string LightningClient::verifyPin(const std::string& pin) {
-    std::cout << "[LightningClient] Verifying PIN " << pin
-              << " on " << ip_address_ << std::endl;
+    auto outcome = verifyPinDetailed(pin);
+    return outcome.status == PinVerifyStatus::Paired ? outcome.token : "";
+}
 
-    // Build JSON payload
+PinVerifyResult LightningClient::interpretPinVerify(const CommandResult& result) {
+    PinVerifyResult out;
+    out.http_status = result.status_code;
+
+    if (!result.success || !result.response_body.isObject() ||
+        !result.response_body.isMember("description") ||
+        !result.response_body["description"].isString()) {
+        out.status = PinVerifyStatus::Failed;
+        return out;
+    }
+
+    std::string description = result.response_body["description"].asString();
+    if (description.empty()) {
+        out.status = PinVerifyStatus::WrongPin;
+    } else if (description == "OK") {
+        out.status = PinVerifyStatus::Pending;
+    } else {
+        out.status = PinVerifyStatus::Paired;
+        out.token = description;
+    }
+    return out;
+}
+
+PinVerifyResult LightningClient::verifyPinDetailed(const std::string& pin) {
+    // The PIN and the token are credentials; neither goes to the log.
+    std::cout << "[LightningClient] Verifying PIN on " << ip_address_ << std::endl;
+
     Json::Value payload;
     payload["pin"] = pin;
 
     Json::StreamWriterBuilder writer;
     std::string json_body = Json::writeString(writer, payload);
 
-    // Send request
     std::string url = base_url_ + "/v1/FireTV/pin/verify";
     auto result = executePost(url, json_body, COMMAND_TIMEOUT, false);
+    auto outcome = interpretPinVerify(result);
 
-    if (result.success) {
-        if (result.response_body.isMember("description")) {
-            std::string token = result.response_body["description"].asString();
-            if (!token.empty() && token != "OK") {
-                client_token_ = token;
-                std::cout << "[LightningClient] PIN verified, token: " << token
-                          << " (" << result.response_time_ms << "ms)" << std::endl;
-                return token;
-            }
-            // "OK" means TV accepted the PIN but token isn't ready yet
+    switch (outcome.status) {
+        case PinVerifyStatus::Paired:
+            client_token_ = outcome.token;
+            std::cout << "[LightningClient] PIN verified, token issued ("
+                      << result.response_time_ms << "ms)" << std::endl;
+            break;
+        case PinVerifyStatus::WrongPin:
+            std::cout << "[LightningClient] Device rejected the PIN" << std::endl;
+            break;
+        case PinVerifyStatus::Pending:
             std::cout << "[LightningClient] PIN accepted, token pending..." << std::endl;
-        } else {
-            std::cerr << "[LightningClient] PIN verify response missing 'description' field" << std::endl;
-        }
-    } else {
-        std::cerr << "[LightningClient] Failed to verify PIN on " << ip_address_
-                  << " — HTTP " << result.status_code
-                  << (result.error.has_value() ? " (" + result.error.value() + ")" : "")
-                  << std::endl;
+            break;
+        case PinVerifyStatus::Failed:
+            std::cerr << "[LightningClient] Failed to verify PIN on " << ip_address_
+                      << " — HTTP " << result.status_code
+                      << (result.error.has_value() ? " (" + result.error.value() + ")" : "")
+                      << std::endl;
+            break;
     }
+    return outcome;
+}
 
-    return "";
+bool LightningClient::isAuthRejection(int status_code) {
+    return status_code == 401 || status_code == 403;
+}
+
+TokenCheck LightningClient::interpretTokenCheck(const CommandResult& result) {
+    if (isAuthRejection(result.status_code)) return TokenCheck::Rejected;
+    if (result.success) return TokenCheck::Valid;
+    return TokenCheck::Inconclusive;
+}
+
+TokenCheck LightningClient::checkToken() {
+    if (client_token_.empty()) return TokenCheck::Inconclusive;
+
+    // No wake (it would switch the TV on) and no auth report (the caller of
+    // a check is the one acting on its answer).
+    auto result = executeGet(base_url_ + "/v1/FireTV/status", HEALTH_TIMEOUT,
+                             /*allow_wake=*/false, /*report_auth=*/false);
+    auto check = interpretTokenCheck(result);
+
+    std::cout << "[LightningClient] Token check on " << ip_address_ << ": "
+              << (check == TokenCheck::Valid      ? "valid"
+                  : check == TokenCheck::Rejected ? "rejected"
+                                                  : "inconclusive")
+              << " (HTTP " << result.status_code << ")" << std::endl;
+    return check;
+}
+
+void LightningClient::setAuthRejectedHandler(std::function<void(const std::string&)> handler) {
+    auth_rejected_handler_ = std::move(handler);
+}
+
+void LightningClient::reportAuthResult(const CommandResult& result, const std::string& token_sent) {
+    if (token_sent.empty() || !auth_rejected_handler_) return;
+    if (!isAuthRejection(result.status_code)) return;
+
+    std::cerr << "[LightningClient] " << ip_address_ << " rejected the client token (HTTP "
+              << result.status_code << ")" << std::endl;
+    auth_rejected_handler_(token_sent);
 }
 
 void LightningClient::setClientToken(const std::string& token) {
@@ -136,15 +201,27 @@ std::string LightningClient::getClientToken() const {
 // MEDIA CONTROLS
 // ============================================================================
 
+std::string LightningClient::buildScanBody(const std::string& direction) {
+    Json::Value body;
+    body["direction"] = (direction == "back" || direction == "backward") ? "backward" : "forward";
+    body["durationInSeconds"] = "10";
+    body["speed"] = "1";
+
+    Json::StreamWriterBuilder writer;
+    writer["indentation"] = "";
+    return Json::writeString(writer, body);
+}
+
 CommandResult LightningClient::sendMediaCommand(const std::string& action,
                                                   const std::string& direction) {
     std::string url = base_url_ + "/v1/media?action=" + action;
 
-    if (action == "scan" && !direction.empty()) {
-        url += "&direction=" + direction;
+    std::string body;
+    if (action == "scan") {
+        body = buildScanBody(direction);
     }
 
-    auto result = executePost(url);
+    auto result = executePost(url, body);
 
     if (result.success) {
         std::cout << "[LightningClient] Media command '" << action
@@ -170,7 +247,7 @@ CommandResult LightningClient::scanForward() {
 }
 
 CommandResult LightningClient::scanBackward() {
-    return sendMediaCommand("scan", "back");
+    return sendMediaCommand("scan", "backward");
 }
 
 // ============================================================================
@@ -227,6 +304,10 @@ CommandResult LightningClient::menu() {
 
 CommandResult LightningClient::sleep() {
     return sendNavigationCommand("sleep");
+}
+
+CommandResult LightningClient::powerToggle() {
+    return sendNavigationCommand("power");
 }
 
 // ============================================================================
@@ -329,14 +410,17 @@ CommandResult LightningClient::sendKeyboardInput(const std::string& text) {
 
 bool LightningClient::isLightningApiAvailable() {
     std::string url = base_url_ + "/v1/FireTV";
-    auto result = executeGet(url, HEALTH_TIMEOUT);
+    // A reachability probe: whatever it answers is not a verdict on the token.
+    // It must not wake either - it is what wakeAndWait() polls, and a probe
+    // that woke and retried would call wakeAndWait() from inside itself.
+    auto result = executeGet(url, HEALTH_TIMEOUT, /*allow_wake=*/false, /*report_auth=*/false);
 
     // Any response (even errors) means API is up
     return result.status_code > 0;
 }
 
 bool LightningClient::healthCheck() {
-    auto result = executeGet(wake_url_, HEALTH_TIMEOUT);
+    auto result = executeGet(wake_url_, HEALTH_TIMEOUT, /*allow_wake=*/false, /*report_auth=*/false);
 
     // 200, 204, 404 are all good (means device is reachable)
     return result.status_code == 200 ||
@@ -368,13 +452,15 @@ struct curl_slist* LightningClient::buildHeaders(bool include_token) {
         headers = curl_slist_append(headers, token_header.c_str());
     }
 
-    // Add content type
-    headers = curl_slist_append(headers, "Content-Type: application/json");
+    // The official app sends the charset, and media?action=scan answers
+    // "Bad arguments supplied" without it.
+    headers = curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
 
     return headers;
 }
 
-CommandResult LightningClient::executeGet(const std::string& url, long timeout_seconds) {
+CommandResult LightningClient::executeGet(const std::string& url, long timeout_seconds,
+                                          bool allow_wake, bool report_auth) {
     CommandResult result;
     auto start_time = std::chrono::steady_clock::now();
 
@@ -384,6 +470,7 @@ CommandResult LightningClient::executeGet(const std::string& url, long timeout_s
     }
 
     std::string response_body;
+    const std::string token_sent = client_token_;
     struct curl_slist* headers = buildHeaders(true);
 
     // Configure CURL
@@ -429,12 +516,12 @@ CommandResult LightningClient::executeGet(const std::string& url, long timeout_s
         // is absent or wedged, and waking it cannot help - retrying there just
         // doubles the wait for every command sent to a device that is gone.
         bool asleep = (res == CURLE_COULDNT_CONNECT);
-        if (asleep && !retrying_after_wake_) {
+        if (asleep && allow_wake && !retrying_after_wake_) {
             std::cout << "[LightningClient] " << ip_address_
                       << " did not answer, waking and retrying once" << std::endl;
             if (wakeAndWait()) {
                 retrying_after_wake_ = true;
-                auto retried = executeGet(url, timeout_seconds);
+                auto retried = executeGet(url, timeout_seconds, allow_wake, report_auth);
                 retrying_after_wake_ = false;
                 return retried;
             }
@@ -451,6 +538,7 @@ CommandResult LightningClient::executeGet(const std::string& url, long timeout_s
     }
 
     result.success = (http_code >= 200 && http_code < 300);
+    if (report_auth) reportAuthResult(result, token_sent);
     return result;
 }
 
@@ -475,7 +563,8 @@ bool LightningClient::wakeAndWait() {
 CommandResult LightningClient::executePost(const std::string& url,
                                              const std::string& json_body,
                                              long timeout_seconds,
-                                             bool include_token) {
+                                             bool include_token,
+                                             bool allow_wake) {
     CommandResult result;
     auto start_time = std::chrono::steady_clock::now();
 
@@ -485,6 +574,7 @@ CommandResult LightningClient::executePost(const std::string& url,
     }
 
     std::string response_body;
+    const std::string token_sent = include_token ? client_token_ : std::string();
     struct curl_slist* headers = buildHeaders(include_token);
 
     // Configure CURL
@@ -537,12 +627,12 @@ CommandResult LightningClient::executePost(const std::string& url,
         // is absent or wedged, and waking it cannot help - retrying there just
         // doubles the wait for every command sent to a device that is gone.
         bool asleep = (res == CURLE_COULDNT_CONNECT);
-        if (asleep && !retrying_after_wake_) {
+        if (asleep && allow_wake && !retrying_after_wake_) {
             std::cout << "[LightningClient] " << ip_address_
                       << " did not answer, waking and retrying once" << std::endl;
             if (wakeAndWait()) {
                 retrying_after_wake_ = true;
-                auto retried = executePost(url, json_body, timeout_seconds, include_token);
+                auto retried = executePost(url, json_body, timeout_seconds, include_token, allow_wake);
                 retrying_after_wake_ = false;
                 return retried;
             }
@@ -559,6 +649,7 @@ CommandResult LightningClient::executePost(const std::string& url,
     }
 
     result.success = (http_code >= 200 && http_code < 300);
+    reportAuthResult(result, token_sent);
     return result;
 }
 

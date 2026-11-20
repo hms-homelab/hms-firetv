@@ -1,5 +1,6 @@
 #include "api/CommandController.h"
 #include "services/DatabaseService.h"
+#include "services/TokenGuard.h"
 #include <drogon/HttpClient.h>
 #include <iostream>
 #include <chrono>
@@ -608,17 +609,20 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
 
     // Add Lightning API headers
     req->addHeader("X-Api-Key", device->api_key);
-    if (device->client_token.has_value()) {
-        req->addHeader("X-Client-Token", device->client_token.value());
+    const std::string token_sent = device->client_token.value_or("");
+    if (!token_sent.empty()) {
+        req->addHeader("X-Client-Token", token_sent);
     }
-    req->addHeader("Content-Type", "application/json");
+    // Replace (not add) the JSON content type so the charset is the one sent.
+    req->setContentTypeString("application/json; charset=utf-8");
 
     // Record start time
     auto start_time = std::chrono::steady_clock::now();
 
     // Send async request
     client->sendRequest(req,
-        [this, completion_callback, start_time, device_id, endpoint, json_body, allow_wake_retry]
+        [this, completion_callback, start_time, device_id, endpoint, json_body, allow_wake_retry,
+         token_sent]
         (ReqResult result, const HttpResponsePtr& response) {
 
         // Calculate response time
@@ -635,6 +639,14 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
             std::string error_msg;
             if (!success) {
                 error_msg = "HTTP " + std::to_string(status_code);
+            }
+
+            // The device dropped our token. Confirm and clear the pairing off
+            // the event loop; the caller still gets "HTTP 403" right away.
+            if (LightningClient::isAuthRejection(status_code) && !token_sent.empty()) {
+                std::thread([device_id, token_sent]() {
+                    TokenGuard::handleRejection(device_id, token_sent);
+                }).detach();
             }
 
             completion_callback(success, response_time_ms, error_msg);
@@ -707,16 +719,21 @@ void CommandController::makeAsyncFireTVCall(const std::string& device_id,
 }
 
 std::shared_ptr<LightningClient> CommandController::getClient(const std::string& device_id) {
-    // Check cache first
-    auto cached = clients_cache_.get(device_id);
-    if (cached.has_value()) {
-        return cached.value();
-    }
-
     // Get device from database
     auto device = DeviceRepository::getInstance().getDeviceById(device_id);
     if (!device.has_value()) {
         return nullptr;
+    }
+
+    // A cached client keeps the token it was built with. After a re-pair (or
+    // a cleared pairing) that token is dead, and the cache would keep sending
+    // it for up to an hour, so refresh it from the record on every use.
+    auto cached = clients_cache_.get(device_id);
+    if (cached.has_value()) {
+        if (cached.value()->getClientToken() != device->client_token.value_or("")) {
+            cached.value()->setClientToken(device->client_token.value_or(""));
+        }
+        return cached.value();
     }
 
     // Create new client
@@ -729,6 +746,7 @@ std::shared_ptr<LightningClient> CommandController::getClient(const std::string&
     if (device->client_token.has_value()) {
         client->setClientToken(device->client_token.value());
     }
+    TokenGuard::attach(*client, device_id);
 
     // Cache client (will evict LRU if at capacity)
     clients_cache_.put(device_id, client);

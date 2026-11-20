@@ -37,6 +37,7 @@ set(TEST_SOURCES
     test_stats_controller.cpp
     test_apps_repository.cpp
     test_discovery_service.cpp
+    test_lightning_protocol.cpp
 )
 
 set(UNIT_TEST_SOURCES
@@ -67,6 +68,7 @@ foreach(test_src ${TEST_SOURCES})
         ${CMAKE_SOURCE_DIR}/src/mqtt/MQTTClient.cpp
         ${CMAKE_SOURCE_DIR}/src/mqtt/DiscoveryPublisher.cpp
         ${CMAKE_SOURCE_DIR}/src/services/DiscoveryService.cpp
+        ${CMAKE_SOURCE_DIR}/src/services/TokenGuard.cpp
     )
 
     target_link_libraries(${test_name}
