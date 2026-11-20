@@ -56,6 +56,37 @@ TEST_F(DeviceControllerTest, ListDevicesReturnsValidResponse) {
     EXPECT_TRUE(response_data["devices"].isArray());
 }
 
+// The client token is a credential: it must never leave the service over
+// HTTP. is_paired is what callers (the HA REST sensor, the web UI) need.
+TEST_F(DeviceControllerTest, DeviceJsonNeverCarriesTheClientToken) {
+    Device device;
+    device.device_id = "token_hidden";
+    device.name = "Token Hidden";
+    device.ip_address = "192.0.2.20";
+    ASSERT_TRUE(DeviceRepository::getInstance().createDevice(device).has_value());
+    ASSERT_TRUE(db->completePairing("token_hidden", "secret-token-value"));
+
+    DeviceController controller;
+    std::string list_body, get_body;
+    controller.listDevices(HttpRequest::newHttpRequest(),
+                           [&](const HttpResponsePtr& resp) { list_body = std::string(resp->getBody()); });
+    controller.getDeviceById(HttpRequest::newHttpRequest(),
+                             [&](const HttpResponsePtr& resp) { get_body = std::string(resp->getBody()); },
+                             "token_hidden");
+
+    for (const std::string* body : {&list_body, &get_body}) {
+        EXPECT_EQ(body->find("secret-token-value"), std::string::npos) << *body;
+        EXPECT_EQ(body->find("\"client_token\""), std::string::npos) << *body;
+        EXPECT_NE(body->find("\"is_paired\":true"), std::string::npos) << *body;
+    }
+
+    auto stored = DeviceRepository::getInstance().getDeviceById("token_hidden");
+    ASSERT_TRUE(stored.has_value());
+    Json::Value model_json = stored->toJson();
+    EXPECT_FALSE(model_json.isMember("client_token"));
+    EXPECT_TRUE(model_json["is_paired"].asBool());
+}
+
 // Test: Create device
 TEST_F(DeviceControllerTest, CreateDeviceSuccess) {
     DeviceController controller;

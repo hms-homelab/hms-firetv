@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Security
+- `Device::toJson()` no longer includes the client token. The REST device
+  routes already sent only `is_paired` / `has_client_token`, and no HTTP or
+  MQTT path calls the model's serializer today, so nothing leaked; this
+  closes the door before something does. A test pins `/api/devices` and
+  `/api/devices/{id}` to never carry the token.
+
 ### Fixed
 - `is_paired` no longer outlives the token. When a Fire TV drops its client
   token, every command comes back 401/403, but the service went on reporting

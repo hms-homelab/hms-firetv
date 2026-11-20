@@ -73,9 +73,8 @@ struct Device {
         json["is_paired"] = isPaired();
         json["is_online"] = isOnline();
 
-        if (client_token.has_value()) {
-            json["client_token"] = client_token.value();
-        }
+        // The client token is the one secret in the pairing (the API key is a
+        // public constant). It never goes into JSON; is_paired says enough.
 
         if (pin_code.has_value()) {
             json["pin_code"] = pin_code.value();
