@@ -88,11 +88,11 @@ TEST_F(DiscoveryServiceTest, FindsMovedDeviceByUdn) {
 // woke the only other Fire TV on the subnet every scan to test it, which
 // turned that Fire TV's television on. It must not touch or adopt it.
 TEST_F(DiscoveryServiceTest, DeviceWithoutUdnDoesNotAdoptAnotherFireTv) {
-    addDevice("albin_colada", "10.0.0.64");
+    addDevice("office_colada", "10.0.0.64");
 
     discovery->matchAndUpdate({seen("10.0.0.47", kCubeUdn)});
 
-    auto d = get("albin_colada");
+    auto d = get("office_colada");
     EXPECT_EQ(d.ip_address, "10.0.0.64");
     EXPECT_FALSE(d.dial_udn.has_value());
 }

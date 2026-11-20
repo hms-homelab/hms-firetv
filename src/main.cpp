@@ -56,9 +56,9 @@ int main() {
         int thread_num           = ConfigManager::getEnvInt("THREAD_NUM", 4);
         int idle_timeout         = ConfigManager::getEnvInt("IDLE_CONNECTION_TIMEOUT", 60);
         std::string log_level    = ConfigManager::getEnv("LOG_LEVEL", "info");
-        std::string mqtt_broker  = ConfigManager::getEnv("MQTT_BROKER_HOST", "192.168.1.15");
+        std::string mqtt_broker  = ConfigManager::getEnv("MQTT_BROKER_HOST", "localhost");
         int mqtt_port            = ConfigManager::getEnvInt("MQTT_BROKER_PORT", 1883);
-        std::string mqtt_user    = ConfigManager::getEnv("MQTT_USER", "aamat");
+        std::string mqtt_user    = ConfigManager::getEnv("MQTT_USER", "");
         std::string mqtt_pass    = ConfigManager::getEnv("MQTT_PASS", "");
         std::string mqtt_addr    = "tcp://" + mqtt_broker + ":" + std::to_string(mqtt_port);
 

@@ -37,7 +37,7 @@ int main() {
         printHeader("STEP 1: Initialize Database Connection");
 
         DatabaseService::getInstance().initialize(
-            "192.168.1.15", 5432, "firetv",
+            envOr("DB_HOST", "localhost"), 5432, "firetv",
             "firetv_user", envOr("DB_PASSWORD", "")
         );
 

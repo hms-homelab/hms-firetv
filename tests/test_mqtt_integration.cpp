@@ -48,11 +48,11 @@ int main() {
     printSeparator("HMS FireTV - MQTT Integration Test");
 
     // Test configuration
-    std::string mqtt_broker = "tcp://192.168.1.15:1883";
-    std::string mqtt_user = "aamat";
+    std::string mqtt_broker = envOr("MQTT_BROKER", "tcp://localhost:1883");
+    std::string mqtt_user = envOr("MQTT_USER", "hms");
     std::string mqtt_password = envOr("MQTT_PASS", "");
 
-    std::string db_host = "192.168.1.15";
+    std::string db_host = envOr("DB_HOST", "localhost");
     int db_port = 5432;
     std::string db_name = "firetv";
     std::string db_user = "firetv_user";
@@ -129,7 +129,7 @@ int main() {
 
     if (discovery_publisher->publishAvailability(test_device.device_id, true)) {
         std::cout << "✅ Published availability: online\n";
-        std::cout << "   Topic: maestro_hub/firetv/" << test_device.device_id << "/availability\n";
+        std::cout << "   Topic: <prefix>/" << test_device.device_id << "/availability\n";
         std::cout << "   Payload: online\n";
     } else {
         std::cerr << "❌ Failed to publish availability\n";
@@ -150,7 +150,7 @@ int main() {
 
     if (mqtt_client->publishState(test_device.device_id, state)) {
         std::cout << "✅ Published state\n";
-        std::cout << "   Topic: maestro_hub/firetv/" << test_device.device_id << "/state\n";
+        std::cout << "   Topic: <prefix>/" << test_device.device_id << "/state\n";
         std::cout << "   State: idle\n";
         std::cout << "   Volume: 50%\n";
     } else {
@@ -187,7 +187,7 @@ int main() {
     );
 
     std::cout << "✅ Subscribed to command topics\n";
-    std::cout << "   Listening on: maestro_hub/firetv/+/set\n";
+    std::cout << "   Listening on: <prefix>/+/set\n";
 
     // ========================================================================
     // TEST 7: Simulated Commands (Manual Testing)
@@ -198,33 +198,33 @@ int main() {
     std::cout << "To test commands, open another terminal and run:\n\n";
 
     std::cout << "# Test volume up:\n";
-    std::cout << "mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \\\n";
-    std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
+    std::cout << "mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \\\n";
+    std::cout << "  -t \"<prefix>/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"volume_up\"}'\n\n";
 
     std::cout << "# Test volume down:\n";
-    std::cout << "mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \\\n";
-    std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
+    std::cout << "mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \\\n";
+    std::cout << "  -t \"<prefix>/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"volume_down\"}'\n\n";
 
     std::cout << "# Test navigation:\n";
-    std::cout << "mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \\\n";
-    std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
+    std::cout << "mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \\\n";
+    std::cout << "  -t \"<prefix>/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"navigate\", \"action\": \"home\"}'\n\n";
 
     std::cout << "# Test media play:\n";
-    std::cout << "mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \\\n";
-    std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
+    std::cout << "mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \\\n";
+    std::cout << "  -t \"<prefix>/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"media_play_pause\"}'\n\n";
 
     std::cout << "# Test app launch:\n";
-    std::cout << "mosquitto_pub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \\\n";
-    std::cout << "  -t \"maestro_hub/firetv/" << test_device.device_id << "/set\" \\\n";
+    std::cout << "mosquitto_pub -h hub.local -u hms -P $(MQTT_PASS) \\\n";
+    std::cout << "  -t \"<prefix>/" << test_device.device_id << "/set\" \\\n";
     std::cout << "  -m '{\"command\": \"launch_app\", \"package\": \"com.netflix.ninja\"}'\n\n";
 
     std::cout << "# Monitor state changes:\n";
-    std::cout << "mosquitto_sub -h 192.168.1.15 -u aamat -P $(MQTT_PASS) \\\n";
-    std::cout << "  -t \"maestro_hub/firetv/#\" -v\n\n";
+    std::cout << "mosquitto_sub -h hub.local -u hms -P $(MQTT_PASS) \\\n";
+    std::cout << "  -t \"<prefix>/#\" -v\n\n";
 
     // ========================================================================
     // TEST 8: Wait for commands (interactive mode)

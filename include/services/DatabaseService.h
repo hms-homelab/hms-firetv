@@ -46,7 +46,7 @@ namespace hms_firetv {
  * ===============
  * Database: firetv
  * Main Table: fire_tv_devices
- * User: maestro
+ * User: $(DB_USER)
  * Password: $(DB_PASSWORD)
  */
 class DatabaseService {
@@ -68,7 +68,7 @@ public:
      * Creates initial connection to database. Must be called before any
      * database operations.
      *
-     * @param host Database hostname (e.g., "192.168.1.15")
+     * @param host Database hostname (e.g., "hub.local")
      * @param port Database port (default: 5432)
      * @param dbname Database name ("firetv")
      * @param user Database username ("firetv_user")

@@ -47,7 +47,7 @@ public:
     /**
      * Connect to MQTT broker
      *
-     * @param broker_address Broker address (e.g., "tcp://192.168.1.15:1883")
+     * @param broker_address Broker address (e.g., "tcp://hub.local:1883")
      * @param username MQTT username
      * @param password MQTT password
      * @return true if connected successfully

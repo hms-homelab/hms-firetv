@@ -8,12 +8,18 @@
 #include <cstdlib>
 
 namespace {
-/** Credentials come from the environment; nothing is baked into the source.
- *  Set DB_PASSWORD / MQTT_PASS to point these tests at a live instance. */
+/** The broker and credentials come from the environment; nothing is baked
+ *  into the source. These tests need a live broker, so they are opt-in:
+ *  set TEST_MQTT_BROKER (e.g. tcp://localhost:1883), and TEST_MQTT_USER /
+ *  TEST_MQTT_PASS if it wants credentials. Unset, every test is skipped.
+ *  Point them at a broker nothing real listens on: they publish to test/. */
 inline const char* envOr(const char* name, const char* fallback) {
     const char* v = std::getenv(name);
     return (v && *v) ? v : fallback;
 }
+inline std::string broker() { return envOr("TEST_MQTT_BROKER", ""); }
+inline std::string user()   { return envOr("TEST_MQTT_USER", ""); }
+inline std::string pass()   { return envOr("TEST_MQTT_PASS", ""); }
 }  // namespace
 
 
@@ -29,13 +35,9 @@ protected:
     std::string client_id;
 
     void SetUp() override {
-        try {
-            DatabaseService::getInstance().initialize(
-                "192.168.1.15", 5432, "firetv", "firetv_user", envOr("DB_PASSWORD", "")
-            );
-        } catch (const std::exception& e) {
-            std::cerr << "Database init failed: " << e.what() << std::endl;
-            GTEST_SKIP() << "Database not available";
+        // These tests exercise the MQTT client only; they need no database.
+        if (broker().empty()) {
+            GTEST_SKIP() << "TEST_MQTT_BROKER not set; MQTT integration tests skipped";
         }
 
         client_id = "test_client_" + std::to_string(std::time(nullptr)) + "_" +
@@ -58,8 +60,7 @@ protected:
 // Test: Can connect to MQTT broker
 TEST_F(MQTTClientTest, Connect_Succeeds) {
     bool connected = mqtt_client->connect(
-        "tcp://192.168.1.15:1883",
-        "aamat", envOr("MQTT_PASS", "")
+        broker(), user(), pass()
     );
 
     EXPECT_TRUE(connected) << "Should connect to MQTT broker";
@@ -73,8 +74,7 @@ TEST_F(MQTTClientTest, Connect_WithInvalidCredentials_BrokerDependent) {
     auto bad_client = std::make_unique<MQTTClient>("bad_client_" + std::to_string(rand()));
 
     bool connected = bad_client->connect(
-        "tcp://192.168.1.15:1883",
-        "invalid_user", "invalid_pass"
+        broker(), "invalid_user", "invalid_pass"
     );
 
     // Broker may or may not reject invalid credentials depending on configuration
@@ -95,8 +95,7 @@ TEST_F(MQTTClientTest, Connect_WithInvalidCredentials_BrokerDependent) {
 // Test: Publish is non-blocking and completes quickly
 TEST_F(MQTTClientTest, Publish_IsNonBlocking) {
     bool connected = mqtt_client->connect(
-        "tcp://192.168.1.15:1883",
-        "aamat", envOr("MQTT_PASS", "")
+        broker(), user(), pass()
     );
     ASSERT_TRUE(connected);
 
@@ -119,8 +118,7 @@ TEST_F(MQTTClientTest, Publish_IsNonBlocking) {
 // Test: Multiple publishes don't block each other
 TEST_F(MQTTClientTest, MultiplePublishes_DontBlock) {
     bool connected = mqtt_client->connect(
-        "tcp://192.168.1.15:1883",
-        "aamat", envOr("MQTT_PASS", "")
+        broker(), user(), pass()
     );
     ASSERT_TRUE(connected);
 
@@ -150,8 +148,7 @@ TEST_F(MQTTClientTest, MultiplePublishes_DontBlock) {
 // Test: Publish from callback doesn't deadlock
 TEST_F(MQTTClientTest, PublishFromCallback_DoesNotDeadlock) {
     bool connected = mqtt_client->connect(
-        "tcp://192.168.1.15:1883",
-        "aamat", envOr("MQTT_PASS", "")
+        broker(), user(), pass()
     );
     ASSERT_TRUE(connected);
 
@@ -188,8 +185,7 @@ TEST_F(MQTTClientTest, PublishFromCallback_DoesNotDeadlock) {
 // Test: Can subscribe to topics
 TEST_F(MQTTClientTest, Subscribe_Succeeds) {
     bool connected = mqtt_client->connect(
-        "tcp://192.168.1.15:1883",
-        "aamat", envOr("MQTT_PASS", "")
+        broker(), user(), pass()
     );
     ASSERT_TRUE(connected);
 

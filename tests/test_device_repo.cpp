@@ -23,7 +23,7 @@ int main() {
     try {
         // Initialize database connection
         DatabaseService::getInstance().initialize(
-            "192.168.1.15", 5432, "firetv",
+            envOr("DB_HOST", "localhost"), 5432, "firetv",
             "firetv_user", envOr("DB_PASSWORD", "")
         );
         std::cout << "✓ Database connected" << std::endl;

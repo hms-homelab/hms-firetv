@@ -2,9 +2,11 @@
 
 # HMS FireTV MQTT Manual Test Script
 
-BROKER="192.168.1.15"
-USER="aamat"
+BROKER="${MQTT_BROKER_HOST:-localhost}"
+USER="${MQTT_USER:-hms}"
 PASS="${MQTT_PASS}"
+# The service's state/command topic prefix (fixed in src/mqtt/MQTTClient.cpp).
+PREFIX="${TOPIC_PREFIX:?set TOPIC_PREFIX to the service topic prefix}"
 DEVICE_ID="livingroom_colada"
 
 echo "============================================================================"
@@ -37,32 +39,32 @@ if [ "$1" == "monitor" ]; then
     echo "🔍 Monitoring all MQTT traffic..."
     echo "   Press Ctrl+C to stop"
     echo ""
-    mosquitto_sub -h "$BROKER" -u "$USER" -P "$PASS" -t "maestro_hub/firetv/#" -v
+    mosquitto_sub -h "$BROKER" -u "$USER" -P "$PASS" -t "$PREFIX/#" -v
     exit 0
 fi
 
 if [ "$1" == "volume_up" ]; then
-    publish_command "maestro_hub/firetv/$DEVICE_ID/set" '{"command": "volume_up"}'
+    publish_command "$PREFIX/$DEVICE_ID/set" '{"command": "volume_up"}'
     exit 0
 fi
 
 if [ "$1" == "volume_down" ]; then
-    publish_command "maestro_hub/firetv/$DEVICE_ID/set" '{"command": "volume_down"}'
+    publish_command "$PREFIX/$DEVICE_ID/set" '{"command": "volume_down"}'
     exit 0
 fi
 
 if [ "$1" == "home" ]; then
-    publish_command "maestro_hub/firetv/$DEVICE_ID/set" '{"command": "navigate", "action": "home"}'
+    publish_command "$PREFIX/$DEVICE_ID/set" '{"command": "navigate", "action": "home"}'
     exit 0
 fi
 
 if [ "$1" == "play" ]; then
-    publish_command "maestro_hub/firetv/$DEVICE_ID/set" '{"command": "media_play_pause"}'
+    publish_command "$PREFIX/$DEVICE_ID/set" '{"command": "media_play_pause"}'
     exit 0
 fi
 
 if [ "$1" == "netflix" ]; then
-    publish_command "maestro_hub/firetv/$DEVICE_ID/set" '{"command": "launch_app", "package": "com.netflix.ninja"}'
+    publish_command "$PREFIX/$DEVICE_ID/set" '{"command": "launch_app", "package": "com.netflix.ninja"}'
     exit 0
 fi
 
@@ -89,26 +91,26 @@ echo "Manual test commands:"
 echo ""
 echo "# Volume up:"
 echo "mosquitto_pub -h $BROKER -u $USER -P $PASS \\"
-echo "  -t 'maestro_hub/firetv/$DEVICE_ID/set' \\"
+echo "  -t '$PREFIX/$DEVICE_ID/set' \\"
 echo "  -m '{\"command\": \"volume_up\"}'"
 echo ""
 echo "# Volume down:"
 echo "mosquitto_pub -h $BROKER -u $USER -P $PASS \\"
-echo "  -t 'maestro_hub/firetv/$DEVICE_ID/set' \\"
+echo "  -t '$PREFIX/$DEVICE_ID/set' \\"
 echo "  -m '{\"command\": \"volume_down\"}'"
 echo ""
 echo "# Home button:"
 echo "mosquitto_pub -h $BROKER -u $USER -P $PASS \\"
-echo "  -t 'maestro_hub/firetv/$DEVICE_ID/set' \\"
+echo "  -t '$PREFIX/$DEVICE_ID/set' \\"
 echo "  -m '{\"command\": \"navigate\", \"action\": \"home\"}'"
 echo ""
 echo "# Play/Pause:"
 echo "mosquitto_pub -h $BROKER -u $USER -P $PASS \\"
-echo "  -t 'maestro_hub/firetv/$DEVICE_ID/set' \\"
+echo "  -t '$PREFIX/$DEVICE_ID/set' \\"
 echo "  -m '{\"command\": \"media_play_pause\"}'"
 echo ""
 echo "# Launch Netflix:"
 echo "mosquitto_pub -h $BROKER -u $USER -P $PASS \\"
-echo "  -t 'maestro_hub/firetv/$DEVICE_ID/set' \\"
+echo "  -t '$PREFIX/$DEVICE_ID/set' \\"
 echo "  -m '{\"command\": \"launch_app\", \"package\": \"com.netflix.ninja\"}'"
 echo ""

@@ -2,15 +2,15 @@
 
 # HMS FireTV Service Startup Script
 
-export DB_HOST=192.168.1.15
+export DB_HOST=${DB_HOST:-localhost}
 export DB_PORT=5432
 export DB_NAME=firetv
 export DB_USER=firetv_user
 export DB_PASSWORD=${DB_PASSWORD}
 
-export MQTT_BROKER_HOST=192.168.1.15
+export MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-localhost}
 export MQTT_BROKER_PORT=1883
-export MQTT_USER=aamat
+export MQTT_USER=${MQTT_USER:-hms}
 export MQTT_PASS=${MQTT_PASS}
 
 export API_HOST=0.0.0.0
