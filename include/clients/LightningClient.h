@@ -189,7 +189,7 @@ public:
     /**
      * Send media control command
      *
-     * @param action Media action ("play", "pause", "scan")
+     * @param action Media action ("play", "scan"; "pause"/"stop" go out as "play")
      * @param direction Scan direction ("forward", "backward"; "back" is
      *                  accepted and sent as "backward") - required for scan
      * @return Command result with success status and timing
@@ -206,6 +206,13 @@ public:
      * "Bad arguments supplied".
      */
     static std::string buildScanBody(const std::string& direction);
+
+    /**
+     * The media action actually sent. The device documents only "play"
+     * (a play/pause toggle) and "scan"; "pause", "stop" and "play_pause"
+     * are sent as "play". There is no discrete pause or stop.
+     */
+    static std::string mediaWireAction(const std::string& action);
 
     /**
      * Convenience methods for common media commands

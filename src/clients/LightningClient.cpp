@@ -212,8 +212,14 @@ std::string LightningClient::buildScanBody(const std::string& direction) {
     return Json::writeString(writer, body);
 }
 
-CommandResult LightningClient::sendMediaCommand(const std::string& action,
+std::string LightningClient::mediaWireAction(const std::string& action) {
+    if (action == "pause" || action == "stop" || action == "play_pause") return "play";
+    return action;
+}
+
+CommandResult LightningClient::sendMediaCommand(const std::string& requested,
                                                   const std::string& direction) {
+    const std::string action = mediaWireAction(requested);
     std::string url = base_url_ + "/v1/media?action=" + action;
 
     std::string body;
@@ -239,7 +245,8 @@ CommandResult LightningClient::play() {
 }
 
 CommandResult LightningClient::pause() {
-    return sendMediaCommand("pause");
+    // The device has no pause action; play is the documented toggle.
+    return sendMediaCommand("play");
 }
 
 CommandResult LightningClient::scanForward() {

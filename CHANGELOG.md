@@ -23,6 +23,9 @@
 - Media scan sends the direction in the JSON body the device expects
   (`direction`, `durationInSeconds`, `speed`) instead of a query parameter,
   and spells backward `backward`.
+- Pause and stop (REST `media` with `pause`/`stop`, MQTT `media_pause` /
+  `media_stop`) send the documented `media?action=play` toggle. The device
+  has no `pause` action; nothing documents one.
 - Requests send `Content-Type: application/json; charset=utf-8`, which
   `media?action=scan` needs, on both the synchronous and the async path.
 - A wrong PIN on `/pair/verify` answers 400 "Incorrect PIN" instead of 500,

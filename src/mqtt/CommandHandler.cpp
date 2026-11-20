@@ -147,7 +147,7 @@ void CommandHandler::handleMediaCommand(LightningClient& client, const std::stri
     } else if (command == "media_pause") {
         result = client.pause();
     } else if (command == "media_stop") {
-        result = client.pause();  // Fire TV doesn't have explicit stop
+        result = client.pause();  // no stop on the device: the play/pause toggle
     } else if (command == "media_next_track") {
         result = client.scanForward();
     } else if (command == "media_previous_track") {

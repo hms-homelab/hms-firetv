@@ -208,7 +208,7 @@ public value; the client token from pairing is the only secret.
 | Call | Purpose |
 |---|---|
 | `POST /v1/FireTV?action=<a>` | `dpad_up/down/left/right`, `select`, `back`, `home`, `menu`, `sleep`, `power` |
-| `POST /v1/media?action=play` | play/pause toggle |
+| `POST /v1/media?action=play` | play/pause toggle; there is no `pause` or `stop` action, so this service sends `play` for pause and stop too |
 | `POST /v1/media?action=scan` | body `{"direction":"forward"\|"backward","durationInSeconds":"10","speed":"1"}` |
 | `GET  /v1/FireTV/status` | `osVersion`, `platformType`, `turnstileVersion`; needs the token, so it doubles as the token check |
 | `GET  /v1/FireTV/appsV2` | **the installed app list**, with display names and icon art |

@@ -126,6 +126,14 @@ TEST(LightningProtocol, ScanBodyCarriesDirectionDurationAndSpeedAsStrings) {
     EXPECT_EQ(parse(LightningClient::buildScanBody("back"))["direction"].asString(), "backward");
 }
 
+TEST(LightningProtocol, PauseAndStopUseTheDocumentedPlayToggle) {
+    EXPECT_EQ(LightningClient::mediaWireAction("pause"), "play");
+    EXPECT_EQ(LightningClient::mediaWireAction("stop"), "play");
+    EXPECT_EQ(LightningClient::mediaWireAction("play_pause"), "play");
+    EXPECT_EQ(LightningClient::mediaWireAction("play"), "play");
+    EXPECT_EQ(LightningClient::mediaWireAction("scan"), "scan");
+}
+
 // ============================================================================
 // TOKEN GUARD
 // ============================================================================
