@@ -46,7 +46,7 @@ int main() {
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "================================================================================\n";
-    std::cout << "Starting HMS FireTV v1.1.3\n";
+    std::cout << "Starting HMS FireTV v1.2.0\n";
     std::cout << "================================================================================\n";
 
     try {

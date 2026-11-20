@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0] - 2026-11-20
 
 ### Security
 - `Device::toJson()` no longer includes the client token. The REST device
